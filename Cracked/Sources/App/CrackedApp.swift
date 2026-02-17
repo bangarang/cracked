@@ -2,15 +2,16 @@ import SwiftUI
 
 @main
 struct CrackedApp: App {
+    @StateObject private var viewModel = MenuBarViewModel()
+
     var body: some Scene {
-        MenuBarExtra("Cracked", systemImage: "gauge.medium") {
-            Text("Cracked is running")
-                .padding()
-            Divider()
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
-            }
-            .keyboardShortcut("q")
+        MenuBarExtra {
+            MenuBarView(viewModel: viewModel)
+        } label: {
+            Image(systemName: viewModel.iconState.systemImage)
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(viewModel.iconState.color)
         }
+        .menuBarExtraStyle(.window)
     }
 }
