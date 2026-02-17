@@ -1,6 +1,5 @@
 import SwiftUI
 
-@main
 struct CrackedApp: App {
     @StateObject private var viewModel = MenuBarViewModel()
 
