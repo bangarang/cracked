@@ -1,0 +1,46 @@
+name: Cracked
+options:
+  bundleIdPrefix: com.bangarang
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "26.1"
+  minimumXcodeGenVersion: "2.0"
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "7.0.0"
+
+targets:
+  Cracked:
+    type: application
+    platform: macOS
+    sources:
+      - Cracked/Sources
+    resources:
+      - Cracked/Resources
+    settings:
+      base:
+        INFOPLIST_FILE: Cracked/Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.bangarang.cracked
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+    dependencies:
+      - package: GRDB
+    entitlements:
+      path: Cracked/Resources/Cracked.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+
+  CrackedTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - CrackedTests
+    dependencies:
+      - target: Cracked
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
