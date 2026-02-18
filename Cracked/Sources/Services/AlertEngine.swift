@@ -54,22 +54,6 @@ final class AlertEngine: Sendable {
             }
         }
 
-        // Check stale apps
-        for process in processes where process.uptimeSeconds >= stalenessThresholdSeconds {
-            let days = process.uptimeSeconds / 86400
-            let key = "stale:\(process.name)"
-            if shouldAlert(for: key, at: now) {
-                alerts.append(Alert(
-                    type: .staleApp,
-                    processName: process.name,
-                    pid: process.pid,
-                    value: Double(days),
-                    message: "\(process.name) has been running for \(days) days"
-                ))
-                markAlerted(for: key, at: now)
-            }
-        }
-
         // Check load average
         if loadAverage > 20 {
             let key = "load_average"

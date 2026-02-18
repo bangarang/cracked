@@ -23,15 +23,6 @@ struct AlertEngineTests {
         #expect(alerts.isEmpty)
     }
 
-    @Test("Detects stale app")
-    func staleAppDetection() {
-        let engine = AlertEngine(stalenessThresholdSeconds: 86400)  // 1 day
-        let process = ProcessSnapshot(id: 1, pid: 1, uid: 501, name: "OldApp", cpuPercent: 1, memoryMB: 100, uptimeSeconds: 172800)  // 2 days
-
-        let alerts = engine.evaluate(processes: [process], loadAverage: 1.0)
-        #expect(alerts.contains { $0.type == .staleApp && $0.processName == "OldApp" })
-    }
-
     @Test("Respects cooldown period")
     func cooldown() {
         let engine = AlertEngine(cpuThreshold: 80, sustainedSeconds: 0, cooldownSeconds: 900)
