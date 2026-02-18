@@ -404,7 +404,9 @@ struct RecordCard: View {
         case "peak_cpu": "Peak CPU"
         case "process_count": "Most Processes"
         case "total_processes": "Total System Processes"
-        case "longest_uptime": "Longest Uptime"
+        case "peak_tabs": "Most Tabs"
+        case "peak_windows": "Most Windows"
+        case "peak_sessions": "Most Sessions"
         default: record.recordType
         }
     }
@@ -414,8 +416,10 @@ struct RecordCard: View {
         case "peak_cpu": String(format: "%.0f%%", record.value)
         case "process_count": "\(Int(record.value)) processes"
         case "total_processes": "\(Int(record.value)) processes"
-        case "longest_uptime": "\(Int(record.value)) days"
-        default: String(format: "%.1f", record.value)
+        case "peak_tabs": "\(Int(record.value)) tabs"
+        case "peak_windows": "\(Int(record.value)) windows"
+        case "peak_sessions": "\(Int(record.value)) sessions"
+        default: String(format: "%.0f", record.value)
         }
     }
 

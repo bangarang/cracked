@@ -117,9 +117,21 @@ final class MenuBarViewModel: ObservableObject {
         persistCounter += 1
         if persistCounter % 12 == 0 {
             try? db?.saveSnapshot(snapshot)
-            // Save tracked app counts alongside
+            // Save tracked app counts and check for PRs
             if !trackedApps.isEmpty {
                 try? db?.saveTrackedAppCounts(trackedApps.map { ($0.name, $0.count, $0.label) })
+                for app in trackedApps {
+                    let recordType = "peak_\(app.label)"
+                    let existing = try? db?.currentRecord(type: recordType, appName: app.name)
+                    if existing == nil || Double(app.count) > existing!.value {
+                        try? db?.saveRecord(
+                            type: recordType,
+                            value: Double(app.count),
+                            appName: app.name,
+                            details: "PR!"
+                        )
+                    }
+                }
             }
         }
 
