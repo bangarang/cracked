@@ -14,9 +14,24 @@ final class StatsViewModel: ObservableObject {
     @Published var memoryTrend: [TrendPoint] = []
 
     private let db: DatabaseManager?
+    private var refreshTimer: Timer?
 
     init(db: DatabaseManager?) {
         self.db = db
+    }
+
+    func startAutoRefresh() {
+        refresh()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
     }
 
     func refresh() {
