@@ -11,7 +11,7 @@ struct RecordTrackerTests {
         let tracker = RecordTracker(db: db)
 
         let processes = [
-            ProcessSnapshot(id: 1, pid: 1, uid: 501, name: "/Applications/TestApp.app/Contents/MacOS/TestApp", cpuPercent: 200.0, memoryMB: 100, uptimeSeconds: 60)
+            ProcessSnapshot(id: 1, pid: 1, ppid: 0, uid: 501, name: "/Applications/TestApp.app/Contents/MacOS/TestApp", cpuPercent: 200.0, memoryMB: 100, uptimeSeconds: 60)
         ]
 
         let newRecords = try tracker.checkForRecords(processes: processes, totalProcessCount: 10)
@@ -25,7 +25,7 @@ struct RecordTrackerTests {
 
         // 50 processes from one app
         let processes = (0..<50).map { i in
-            ProcessSnapshot(id: Int32(i), pid: Int32(i), uid: 501, name: "/Applications/Comet.app/Contents/MacOS/Comet", cpuPercent: 1.0, memoryMB: 100, uptimeSeconds: 60)
+            ProcessSnapshot(id: Int32(i), pid: Int32(i), ppid: 0, uid: 501, name: "/Applications/Comet.app/Contents/MacOS/Comet", cpuPercent: 1.0, memoryMB: 100, uptimeSeconds: 60)
         }
 
         let newRecords = try tracker.checkForRecords(processes: processes, totalProcessCount: 50)
@@ -38,7 +38,7 @@ struct RecordTrackerTests {
         let tracker = RecordTracker(db: db)
 
         let processes = [
-            ProcessSnapshot(id: 1, pid: 1, uid: 501, name: "/Applications/TestApp.app/Contents/MacOS/TestApp", cpuPercent: 200.0, memoryMB: 100, uptimeSeconds: 60)
+            ProcessSnapshot(id: 1, pid: 1, ppid: 0, uid: 501, name: "/Applications/TestApp.app/Contents/MacOS/TestApp", cpuPercent: 200.0, memoryMB: 100, uptimeSeconds: 60)
         ]
 
         let first = try tracker.checkForRecords(processes: processes, totalProcessCount: 1)

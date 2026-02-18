@@ -8,7 +8,7 @@ struct AlertEngineTests {
     @Test("Detects CPU hog above threshold")
     func cpuHogDetection() {
         let engine = AlertEngine(cpuThreshold: 80, sustainedSeconds: 0)
-        let process = ProcessSnapshot(id: 1, pid: 1, uid: 501, name: "TestApp", cpuPercent: 90, memoryMB: 100, uptimeSeconds: 60)
+        let process = ProcessSnapshot(id: 1, pid: 1, ppid: 0, uid: 501, name: "TestApp", cpuPercent: 90, memoryMB: 100, uptimeSeconds: 60)
 
         let alerts = engine.evaluate(processes: [process], loadAverage: 1.0)
         #expect(alerts.contains { $0.type == .highCPU && $0.processName == "TestApp" })
@@ -17,7 +17,7 @@ struct AlertEngineTests {
     @Test("Does not alert below threshold")
     func noCpuAlert() {
         let engine = AlertEngine(cpuThreshold: 80, sustainedSeconds: 0)
-        let process = ProcessSnapshot(id: 1, pid: 1, uid: 501, name: "TestApp", cpuPercent: 50, memoryMB: 100, uptimeSeconds: 60)
+        let process = ProcessSnapshot(id: 1, pid: 1, ppid: 0, uid: 501, name: "TestApp", cpuPercent: 50, memoryMB: 100, uptimeSeconds: 60)
 
         let alerts = engine.evaluate(processes: [process], loadAverage: 1.0)
         #expect(alerts.isEmpty)
@@ -26,7 +26,7 @@ struct AlertEngineTests {
     @Test("Respects cooldown period")
     func cooldown() {
         let engine = AlertEngine(cpuThreshold: 80, sustainedSeconds: 0, cooldownSeconds: 900)
-        let process = ProcessSnapshot(id: 1, pid: 1, uid: 501, name: "TestApp", cpuPercent: 90, memoryMB: 100, uptimeSeconds: 60)
+        let process = ProcessSnapshot(id: 1, pid: 1, ppid: 0, uid: 501, name: "TestApp", cpuPercent: 90, memoryMB: 100, uptimeSeconds: 60)
 
         let alerts1 = engine.evaluate(processes: [process], loadAverage: 1.0)
         #expect(alerts1.count == 1)

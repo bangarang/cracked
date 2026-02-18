@@ -5,11 +5,20 @@ import SwiftUI
 final class MenuBarViewModel: ObservableObject {
     @Published var cpuHogs: [ProcessSnapshot] = []
     @Published var staleApps: [ProcessSnapshot] = []
+    @Published var trackedApps: [TrackedAppCount] = []
     @Published var loadAverage: Double = 0
     @Published var memoryUsedGB: Double = 0
     @Published var memoryTotalGB: Double = 0
     @Published var totalProcesses: Int = 0
     @Published var iconState: IconState = .normal
+
+    struct TrackedAppCount: Identifiable {
+        let id = UUID()
+        let name: String
+        let count: Int
+        let label: String
+        let appBundlePath: String?
+    }
 
     let monitor = ProcessMonitor()
     let alertEngine = AlertEngine()
@@ -88,6 +97,9 @@ final class MenuBarViewModel: ObservableObject {
         var seen = Set<String>()
         staleApps = staleApps.filter { seen.insert($0.name).inserted }
 
+        // Tracked app counts (computed from full process list)
+        trackedApps = computeTrackedApps(from: snapshot.processes)
+
         // Determine icon state
         let hasCritical = cpuHogs.contains { $0.cpuPercent >= 100 }
         let hasWarning = !cpuHogs.isEmpty || loadAverage > 8
@@ -115,6 +127,51 @@ final class MenuBarViewModel: ObservableObject {
             processes: snapshot.processes,
             totalProcessCount: snapshot.totalProcesses
         )
+    }
+
+    private func computeTrackedApps(from processes: [ProcessSnapshot]) -> [TrackedAppCount] {
+        var results: [TrackedAppCount] = []
+
+        // Browser tabs: count "Helper (Renderer)" processes per browser
+        let browsers: [(name: String, keyword: String, bundle: String)] = [
+            ("Comet", "Comet", "/Applications/Comet.app"),
+            ("Arc", "Arc", "/Applications/Arc.app"),
+            ("Chrome", "Google Chrome", "/Applications/Google Chrome.app"),
+        ]
+        for browser in browsers {
+            let count = processes.count { $0.name.contains(browser.keyword) && $0.name.contains("Helper (Renderer)") }
+            if count > 0 {
+                results.append(TrackedAppCount(name: browser.name, count: count, label: "tabs", appBundlePath: browser.bundle))
+            }
+        }
+
+        // Cursor windows: count "Cursor Helper (Renderer)" processes
+        let cursorWindows = processes.count { $0.name.contains("Cursor") && $0.name.contains("Helper (Renderer)") }
+        if cursorWindows > 0 {
+            results.append(TrackedAppCount(name: "Cursor", count: cursorWindows, label: "windows", appBundlePath: "/Applications/Cursor.app"))
+        }
+
+        // Claude Code instances: bare "claude" processes (not Claude.app)
+        let claudeCount = processes.count { p in
+            let n = p.name
+            return (n == "claude" || n.hasSuffix("/claude")) && !n.contains("Claude.app")
+        }
+        if claudeCount > 0 {
+            results.append(TrackedAppCount(name: "Claude Code", count: claudeCount, label: "sessions", appBundlePath: "/Applications/Claude.app"))
+        }
+
+        // Warp tabs: count login shell processes whose parent is a Warp process
+        let warpPIDs = Set(processes.filter { $0.name.contains("Warp.app") }.map { $0.pid })
+        if !warpPIDs.isEmpty {
+            let warpTabs = processes.count { p in
+                warpPIDs.contains(p.ppid) && p.name.hasPrefix("-")
+            }
+            if warpTabs > 0 {
+                results.append(TrackedAppCount(name: "Warp", count: warpTabs, label: "tabs", appBundlePath: "/Applications/Warp.app"))
+            }
+        }
+
+        return results
     }
 
     func killProcess(_ process: ProcessSnapshot) {

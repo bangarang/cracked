@@ -50,7 +50,7 @@ final class ProcessMonitor: ObservableObject {
     // MARK: - Process list
 
     nonisolated static func fetchProcesses() -> [ProcessSnapshot] {
-        let output = shell("ps", "-axo", "uid,pid,pcpu,rss,etime,comm")
+        let output = shell("ps", "-axo", "uid,pid,ppid,pcpu,rss,etime,comm")
         return parsePsOutput(output)
     }
 
@@ -62,23 +62,25 @@ final class ProcessMonitor: ObservableObject {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty || trimmed.hasPrefix("UID") { continue }
 
-            // Split into at most 6 components: uid, pid, cpu, rss, etime, comm (may contain spaces)
-            let parts = trimmed.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
-            guard parts.count >= 6 else { continue }
+            // Split into at most 7 components: uid, pid, ppid, cpu, rss, etime, comm (may contain spaces)
+            let parts = trimmed.split(separator: " ", maxSplits: 6, omittingEmptySubsequences: true)
+            guard parts.count >= 7 else { continue }
 
             guard let uid = Int(parts[0]),
                   let pid = Int32(parts[1]),
-                  let cpu = Double(parts[2]),
-                  let rssKB = Int(parts[3]) else { continue }
+                  let ppid = Int32(parts[2]),
+                  let cpu = Double(parts[3]),
+                  let rssKB = Int(parts[4]) else { continue }
 
-            let etime = String(parts[4])
-            let comm = String(parts[5])
+            let etime = String(parts[5])
+            let comm = String(parts[6])
             let uptimeSeconds = parseEtime(etime)
             let memoryMB = rssKB / 1024
 
             results.append(ProcessSnapshot(
                 id: pid,
                 pid: pid,
+                ppid: ppid,
                 uid: uid,
                 name: comm,
                 cpuPercent: cpu,

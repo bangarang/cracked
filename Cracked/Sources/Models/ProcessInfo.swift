@@ -3,6 +3,7 @@ import Foundation
 struct ProcessSnapshot: Sendable, Identifiable {
     let id: Int32  // pid
     let pid: Int32
+    let ppid: Int32
     let uid: Int
     let name: String
     let cpuPercent: Double

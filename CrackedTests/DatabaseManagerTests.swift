@@ -23,7 +23,7 @@ struct DatabaseManagerTests {
             memoryUsedMB: 64000,
             memoryTotalMB: 131072,
             processes: [
-                ProcessSnapshot(id: 123, pid: 123, uid: 501, name: "TestApp", cpuPercent: 50.0, memoryMB: 512, uptimeSeconds: 3600)
+                ProcessSnapshot(id: 123, pid: 123, ppid: 0, uid: 501, name: "TestApp", cpuPercent: 50.0, memoryMB: 512, uptimeSeconds: 3600)
             ]
         )
 

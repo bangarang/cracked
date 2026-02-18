@@ -7,9 +7,9 @@ struct ProcessMonitorTests {
     @Test("Parses ps output into ProcessSnapshots")
     func parsePsOutput() {
         let psOutput = """
-          501 99882   0.5  88320  01:23 Comet Helper (Renderer)
-          501 24711 114.4 517472 1-02:15:30 Comet Helper (Renderer)
-          501   786  23.4 1084320 22-06:39:00 Warp
+          501 99882     1   0.5  88320  01:23 Comet Helper (Renderer)
+          501 24711     1 114.4 517472 1-02:15:30 Comet Helper (Renderer)
+          501   786     1  23.4 1084320 22-06:39:00 Warp
         """
         let processes = ProcessMonitor.parsePsOutput(psOutput)
 

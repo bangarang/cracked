@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct MenuBarView: View {
     @ObservedObject var viewModel: MenuBarViewModel
@@ -47,8 +48,31 @@ struct MenuBarView: View {
                 }
             }
 
+            // Tracked Apps
+            if !viewModel.trackedApps.isEmpty {
+                sectionHeader("Tracked Apps")
+                ForEach(viewModel.trackedApps) { app in
+                    HStack(spacing: 8) {
+                        if let path = app.appBundlePath,
+                           FileManager.default.fileExists(atPath: path) {
+                            Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                                .resizable()
+                                .frame(width: 20, height: 20)
+                        }
+                        Text(app.name)
+                            .font(.system(.body))
+                        Spacer()
+                        Text("\(app.count) \(app.label)")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 2)
+                }
+            }
+
             // Nothing to report
-            if viewModel.cpuHogs.isEmpty && viewModel.staleApps.isEmpty {
+            if viewModel.cpuHogs.isEmpty && viewModel.staleApps.isEmpty && viewModel.trackedApps.isEmpty {
                 Text("All systems nominal")
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
