@@ -16,5 +16,9 @@ struct CrackedApp: App {
         Window("Records & Stats", id: "stats") {
             StatsView(viewModel: StatsViewModel(db: viewModel.db))
         }
+
+        Settings {
+            SettingsView()
+        }
     }
 }

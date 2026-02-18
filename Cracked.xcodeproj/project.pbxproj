@@ -13,6 +13,7 @@
 		26AB3E5F883F68A23CF8B446 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */; };
 		36868D7C3C0F2F7CB3A345DD /* ProcessInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F72B8B87A9097A7CCB7530 /* ProcessInfo.swift */; };
 		6D13F9EF2FC06660C950E715 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46370B99D9947DFA8BC9D549 /* StatsView.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6071829A1B2C3D43A5C /* SettingsView.swift */; };
 		879BDDCCF9135782431BE607 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A066D73100003845DECA1DC /* main.swift */; };
 		8A70665972568B0E1A681373 /* AlertEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC58D76AED71F00F8525E90 /* AlertEngineTests.swift */; };
 		8BBC77CB206AB4A17B1CF992 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF0B6A5A6AE147797086478 /* NotificationManager.swift */; };
@@ -55,6 +56,7 @@
 		CCF28E46701D024BC864382B /* RecordTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordTrackerTests.swift; sourceTree = "<group>"; };
 		E1FDA10C334BD5C13C185440 /* CrackedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrackedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E4B628B29CC02D0B6694E077 /* AlertEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEngine.swift; sourceTree = "<group>"; };
+		D4E5F6071829A1B2C3D43A5C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E6F72B8B87A9097A7CCB7530 /* ProcessInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessInfo.swift; sourceTree = "<group>"; };
 		EDF0B6A5A6AE147797086478 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		F8F6248F118882F38F417DBC /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseModels.swift; sourceTree = "<group>"; };
@@ -147,6 +149,7 @@
 			children = (
 				C9FF0FAD489A18CFD69CD98A /* MenuBarView.swift */,
 				39AF25AB7D47915CB05C1D31 /* ProcessRowView.swift */,
+				D4E5F6071829A1B2C3D43A5C /* SettingsView.swift */,
 				46370B99D9947DFA8BC9D549 /* StatsView.swift */,
 			);
 			path = Views;
@@ -252,6 +255,7 @@
 				F522356289C547654A031400 /* ProcessMonitor.swift in Sources */,
 				8E03F68704C6E1FE8DAB158F /* ProcessRowView.swift in Sources */,
 				E65E940EB372D21BB1049452 /* RecordTracker.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* SettingsView.swift in Sources */,
 				6D13F9EF2FC06660C950E715 /* StatsView.swift in Sources */,
 				9407B6584563437082BE80BB /* StatsViewModel.swift in Sources */,
 				879BDDCCF9135782431BE607 /* main.swift in Sources */,
