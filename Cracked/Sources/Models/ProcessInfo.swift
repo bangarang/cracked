@@ -3,10 +3,16 @@ import Foundation
 struct ProcessSnapshot: Sendable, Identifiable {
     let id: Int32  // pid
     let pid: Int32
+    let uid: Int
     let name: String
     let cpuPercent: Double
     let memoryMB: Int
     let uptimeSeconds: Int
+
+    /// System processes run as root (0) or other system UIDs (< 500 on macOS).
+    var isSystemProcess: Bool {
+        uid < 500
+    }
 
     var uptimeFormatted: String {
         if uptimeSeconds >= 86400 {

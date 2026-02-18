@@ -66,7 +66,8 @@ final class ProcessMonitor: ObservableObject {
             let parts = trimmed.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
             guard parts.count >= 6 else { continue }
 
-            guard let pid = Int32(parts[1]),
+            guard let uid = Int(parts[0]),
+                  let pid = Int32(parts[1]),
                   let cpu = Double(parts[2]),
                   let rssKB = Int(parts[3]) else { continue }
 
@@ -78,6 +79,7 @@ final class ProcessMonitor: ObservableObject {
             results.append(ProcessSnapshot(
                 id: pid,
                 pid: pid,
+                uid: uid,
                 name: comm,
                 cpuPercent: cpu,
                 memoryMB: memoryMB,

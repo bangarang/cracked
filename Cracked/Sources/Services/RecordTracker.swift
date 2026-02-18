@@ -3,27 +3,13 @@ import Foundation
 final class RecordTracker {
     private let db: DatabaseManager
 
-    /// Path prefixes that identify system/OS processes (not user apps).
-    private static let systemPrefixes = [
-        "/sbin/", "/usr/sbin/", "/usr/libexec/", "/usr/bin/",
-        "/System/", "/Library/", "/kernel", "/bin/"
-    ]
-
-    /// Returns true if the process name looks like a system daemon rather than a user app.
-    static func isSystemProcess(_ name: String) -> Bool {
-        for prefix in systemPrefixes {
-            if name.hasPrefix(prefix) { return true }
-        }
-        return false
-    }
-
     init(db: DatabaseManager) {
         self.db = db
     }
 
     /// Check current state for new records. Returns list of human-readable record messages.
     func checkForRecords(processes: [ProcessSnapshot], totalProcessCount: Int) throws -> [String] {
-        let userProcesses = processes.filter { !RecordTracker.isSystemProcess($0.name) }
+        let userProcesses = processes.filter { !$0.isSystemProcess }
         var messages: [String] = []
 
         // 1. Peak CPU for any single process (user apps only)
