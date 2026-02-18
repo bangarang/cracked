@@ -36,6 +36,12 @@ struct StatsView: View {
                     Divider()
                 }
 
+                // App Activity (Strava-style PRs + trends)
+                if !viewModel.appTrends.isEmpty {
+                    appActivitySection
+                    Divider()
+                }
+
                 // Load Average Trend
                 trendSection(
                     title: "Load Average (24h)",
@@ -151,6 +157,96 @@ struct StatsView: View {
                     .background(.quaternary.opacity(0.5))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+            }
+        }
+    }
+
+    // MARK: - App Activity (Strava-style)
+
+    private static let appColors: [String: Color] = [
+        "Comet": .orange,
+        "Arc": .purple,
+        "Chrome": .green,
+        "Cursor": .cyan,
+        "Claude Code": .pink,
+        "Warp": .yellow,
+    ]
+
+    private var appActivitySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("App Activity")
+                .font(.title2.bold())
+
+            ForEach(viewModel.appTrends) { trend in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        if let app = menuBarViewModel.trackedApps.first(where: { $0.name == trend.appName }),
+                           let path = app.appBundlePath,
+                           FileManager.default.fileExists(atPath: path) {
+                            Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                        }
+                        Text(trend.appName)
+                            .font(.headline)
+                        Spacer()
+                        // PR badge
+                        VStack(alignment: .trailing, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Text("PR")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.orange)
+                                    .foregroundStyle(.white)
+                                    .clipShape(Capsule())
+                                Text("\(trend.peak) \(trend.label)")
+                                    .font(.subheadline.bold().monospacedDigit())
+                            }
+                            if let date = trend.peakDate {
+                                Text(date, style: .relative)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+
+                    if trend.points.count >= 2 {
+                        let color = Self.appColors[trend.appName] ?? .accentColor
+                        Chart(trend.points) { point in
+                            AreaMark(
+                                x: .value("Time", point.date),
+                                y: .value("Count", point.value)
+                            )
+                            .foregroundStyle(color.opacity(0.15))
+                            LineMark(
+                                x: .value("Time", point.date),
+                                y: .value("Count", point.value)
+                            )
+                            .foregroundStyle(color)
+
+                            // PR line
+                            RuleMark(y: .value("PR", Double(trend.peak)))
+                                .foregroundStyle(.orange.opacity(0.5))
+                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        }
+                        .frame(height: 100)
+                        .chartYScale(domain: 0...Double(max(trend.peak, 1)) * 1.2)
+                        .chartXAxis {
+                            AxisMarks(values: .stride(by: .hour, count: 4)) { _ in
+                                AxisGridLine()
+                                AxisValueLabel(format: .dateTime.hour())
+                            }
+                        }
+                    } else {
+                        Text("Collecting trend data...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(16)
+                .background(.quaternary.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
     }

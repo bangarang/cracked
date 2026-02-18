@@ -117,6 +117,10 @@ final class MenuBarViewModel: ObservableObject {
         persistCounter += 1
         if persistCounter % 12 == 0 {
             try? db?.saveSnapshot(snapshot)
+            // Save tracked app counts alongside
+            if !trackedApps.isEmpty {
+                try? db?.saveTrackedAppCounts(trackedApps.map { ($0.name, $0.count, $0.label) })
+            }
         }
 
         // Downsample every ~hour (720 polls at 5s interval)

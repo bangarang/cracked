@@ -47,6 +47,20 @@ struct RecordEntry: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
+struct TrackedAppRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "tracked_app_snapshots"
+
+    var id: Int64?
+    var timestamp: Double
+    var appName: String
+    var count: Int
+    var label: String
+
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
 struct AppConfigRecord: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "app_configs"
 

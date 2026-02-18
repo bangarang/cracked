@@ -57,6 +57,16 @@ final class DatabaseManager: Sendable {
             }
         }
 
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "tracked_app_snapshots") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("timestamp", .double).notNull()
+                t.column("appName", .text).notNull()
+                t.column("count", .integer).notNull()
+                t.column("label", .text).notNull()
+            }
+        }
+
         try migrator.migrate(dbQueue)
     }
 
@@ -217,6 +227,60 @@ final class DatabaseManager: Sendable {
                 LIMIT ?
                 """
             return try ShameEntry.fetchAll(db, sql: sql, arguments: [limit])
+        }
+    }
+
+    // MARK: - Tracked app snapshots
+
+    func saveTrackedAppCounts(_ counts: [(name: String, count: Int, label: String)]) throws {
+        let now = Date().timeIntervalSince1970
+        try dbQueue.write { db in
+            for item in counts {
+                var record = TrackedAppRecord(
+                    timestamp: now,
+                    appName: item.name,
+                    count: item.count,
+                    label: item.label
+                )
+                try record.insert(db)
+            }
+        }
+    }
+
+    struct TrackedAppTrendPoint: FetchableRecord, Decodable {
+        var timestamp: Double
+        var count: Int
+    }
+
+    func trackedAppTrend(appName: String, hours: Int = 24) throws -> [TrackedAppTrendPoint] {
+        let cutoff = Date().timeIntervalSince1970 - Double(hours * 3600)
+        return try dbQueue.read { db in
+            try TrackedAppTrendPoint.fetchAll(db, sql: """
+                SELECT timestamp, count FROM tracked_app_snapshots
+                WHERE appName = ? AND timestamp > ?
+                ORDER BY timestamp ASC
+                """, arguments: [appName, cutoff])
+        }
+    }
+
+    struct TrackedAppPeak: FetchableRecord, Decodable {
+        var appName: String
+        var label: String
+        var peakCount: Int
+        var achievedAt: Double
+    }
+
+    func trackedAppPeaks() throws -> [TrackedAppPeak] {
+        try dbQueue.read { db in
+            try TrackedAppPeak.fetchAll(db, sql: """
+                SELECT appName, label, MAX(count) as peakCount,
+                       (SELECT timestamp FROM tracked_app_snapshots t2
+                        WHERE t2.appName = t1.appName AND t2.count = MAX(t1.count)
+                        ORDER BY timestamp DESC LIMIT 1) as achievedAt
+                FROM tracked_app_snapshots t1
+                GROUP BY appName
+                ORDER BY peakCount DESC
+                """)
         }
     }
 }

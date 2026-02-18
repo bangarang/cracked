@@ -6,12 +6,22 @@ struct TrendPoint: Identifiable {
     let value: Double
 }
 
+struct AppTrend: Identifiable {
+    let id = UUID()
+    let appName: String
+    let label: String
+    let points: [TrendPoint]
+    let peak: Int
+    let peakDate: Date?
+}
+
 @MainActor
 final class StatsViewModel: ObservableObject {
     @Published var records: [RecordEntry] = []
     @Published var hallOfShame: [DatabaseManager.ShameEntry] = []
     @Published var loadTrend: [TrendPoint] = []
     @Published var memoryTrend: [TrendPoint] = []
+    @Published var appTrends: [AppTrend] = []
 
     private let db: DatabaseManager?
     private var refreshTimer: Timer?
@@ -51,6 +61,23 @@ final class StatsViewModel: ObservableObject {
                 TrendPoint(
                     date: Date(timeIntervalSince1970: $0.timestamp),
                     value: Double($0.memoryUsedMB) / 1024.0
+                )
+            }
+        }
+
+        // Tracked app trends and PRs
+        if let peaks = try? db.trackedAppPeaks() {
+            appTrends = peaks.compactMap { peak in
+                let points = (try? db.trackedAppTrend(appName: peak.appName, hours: 24)) ?? []
+                let trendPoints = points.map {
+                    TrendPoint(date: Date(timeIntervalSince1970: $0.timestamp), value: Double($0.count))
+                }
+                return AppTrend(
+                    appName: peak.appName,
+                    label: peak.label,
+                    points: trendPoints,
+                    peak: peak.peakCount,
+                    peakDate: Date(timeIntervalSince1970: peak.achievedAt)
                 )
             }
         }
