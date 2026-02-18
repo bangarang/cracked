@@ -15,6 +15,7 @@ final class MenuBarViewModel: ObservableObject {
     let alertEngine = AlertEngine()
     let notificationManager = NotificationManager.shared
     private(set) var db: DatabaseManager?
+    private var recordTracker: RecordTracker?
     private var started = false
     private var persistCounter = 0
 
@@ -53,6 +54,7 @@ final class MenuBarViewModel: ObservableObject {
         started = true
         notificationManager.requestPermission()
         db = try? DatabaseManager()
+        if let db { recordTracker = RecordTracker(db: db) }
         monitor.start()
         // Observe changes from monitor
         Task {
@@ -106,6 +108,16 @@ final class MenuBarViewModel: ObservableObject {
         persistCounter += 1
         if persistCounter % 12 == 0 {
             try? db?.saveSnapshot(snapshot)
+        }
+
+        // Check for new records
+        if let records = try? recordTracker?.checkForRecords(
+            processes: snapshot.processes,
+            totalProcessCount: snapshot.totalProcesses
+        ) {
+            for message in records {
+                notificationManager.sendRecordNotification(message: message)
+            }
         }
     }
 
