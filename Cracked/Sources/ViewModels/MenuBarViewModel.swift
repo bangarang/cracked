@@ -55,7 +55,6 @@ final class MenuBarViewModel: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
-        notificationManager.requestPermission()
         db = try? DatabaseManager()
         if let db { recordTracker = RecordTracker(db: db) }
         monitor.start()
@@ -98,15 +97,6 @@ final class MenuBarViewModel: ObservableObject {
             iconState = .warning
         } else {
             iconState = .normal
-        }
-
-        // Check for alerts (only /Applications/ apps)
-        let alerts = alertEngine.evaluate(
-            processes: userApps,
-            loadAverage: snapshot.loadAverage
-        )
-        for alert in alerts {
-            notificationManager.sendAlert(alert)
         }
 
         // Persist snapshot to database (every 12th poll ~ once per minute at 5s interval)
