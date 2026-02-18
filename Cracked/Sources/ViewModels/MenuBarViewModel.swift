@@ -100,9 +100,9 @@ final class MenuBarViewModel: ObservableObject {
             iconState = .normal
         }
 
-        // Check for alerts
+        // Check for alerts (only user apps, not system daemons)
         let alerts = alertEngine.evaluate(
-            processes: snapshot.processes,
+            processes: userProcesses,
             loadAverage: snapshot.loadAverage
         )
         for alert in alerts {
