@@ -19,9 +19,12 @@ final class MenuBarViewModel: ObservableObject {
     private var started = false
     private var persistCounter = 0
 
-    // Thresholds (will be configurable later via Settings)
-    var cpuThreshold: Double = 30.0
-    var stalenessThresholdSeconds: Int = 7 * 86400  // 7 days
+    @AppStorage("cpuThreshold") var cpuThreshold: Double = 30.0
+    @AppStorage("stalenessThresholdDays") private var stalenessThresholdDays: Int = 7
+    @AppStorage("pollIntervalSeconds") private var pollInterval: Double = 5.0
+    @AppStorage("cooldownMinutes") private var cooldownMinutes: Int = 15
+
+    var stalenessThresholdSeconds: Int { stalenessThresholdDays * 86400 }
 
     init() {
         start()
@@ -108,6 +111,11 @@ final class MenuBarViewModel: ObservableObject {
         persistCounter += 1
         if persistCounter % 12 == 0 {
             try? db?.saveSnapshot(snapshot)
+        }
+
+        // Downsample every ~hour (720 polls at 5s interval)
+        if persistCounter % 720 == 0 && persistCounter > 0 {
+            try? db?.downsample()
         }
 
         // Check for new records
