@@ -8,8 +8,6 @@ let isTesting = NSClassFromString("XCTestCase") != nil
     || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
 
 if isTesting {
-    // Minimal app lifecycle so the test runner can attach and inject tests.
-    // NSApplication.run() keeps the process alive for the test runner.
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
     app.run()

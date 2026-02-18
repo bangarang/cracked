@@ -3,16 +3,31 @@ import Foundation
 final class RecordTracker {
     private let db: DatabaseManager
 
+    /// Path prefixes that identify system/OS processes (not user apps).
+    private static let systemPrefixes = [
+        "/sbin/", "/usr/sbin/", "/usr/libexec/", "/usr/bin/",
+        "/System/", "/Library/", "/kernel", "/bin/"
+    ]
+
+    /// Returns true if the process name looks like a system daemon rather than a user app.
+    static func isSystemProcess(_ name: String) -> Bool {
+        for prefix in systemPrefixes {
+            if name.hasPrefix(prefix) { return true }
+        }
+        return false
+    }
+
     init(db: DatabaseManager) {
         self.db = db
     }
 
     /// Check current state for new records. Returns list of human-readable record messages.
     func checkForRecords(processes: [ProcessSnapshot], totalProcessCount: Int) throws -> [String] {
+        let userProcesses = processes.filter { !RecordTracker.isSystemProcess($0.name) }
         var messages: [String] = []
 
-        // 1. Peak CPU for any single process
-        if let topCPU = processes.max(by: { $0.cpuPercent < $1.cpuPercent }), topCPU.cpuPercent > 50 {
+        // 1. Peak CPU for any single process (user apps only)
+        if let topCPU = userProcesses.max(by: { $0.cpuPercent < $1.cpuPercent }), topCPU.cpuPercent > 50 {
             let existing = try db.currentRecord(type: "peak_cpu")
             if existing == nil || topCPU.cpuPercent > existing!.value {
                 try db.saveRecord(
@@ -25,8 +40,8 @@ final class RecordTracker {
             }
         }
 
-        // 2. Most processes from a single app
-        let grouped = Dictionary(grouping: processes, by: \.name)
+        // 2. Most processes from a single app (user apps only)
+        let grouped = Dictionary(grouping: userProcesses, by: \.name)
         for (appName, appProcesses) in grouped where appProcesses.count >= 10 {
             let count = Double(appProcesses.count)
             let existing = try db.currentRecord(type: "process_count", appName: appName)
@@ -55,8 +70,8 @@ final class RecordTracker {
             }
         }
 
-        // 4. Longest uptime for a single app
-        if let longestRunning = processes.max(by: { $0.uptimeSeconds < $1.uptimeSeconds }),
+        // 4. Longest uptime for a single app (user apps only)
+        if let longestRunning = userProcesses.max(by: { $0.uptimeSeconds < $1.uptimeSeconds }),
            longestRunning.uptimeSeconds >= 86400 {
             let days = Double(longestRunning.uptimeSeconds) / 86400.0
             let existing = try db.currentRecord(type: "longest_uptime", appName: longestRunning.name)

@@ -26,10 +26,11 @@ final class ProcessMonitor: ObservableObject {
     }
 
     private func pollAsync() {
-        Task.detached {
-            let processes = Self.fetchProcesses()
-            let loadAvg = Self.fetchLoadAverage()
-            let (usedMB, totalMB) = Self.fetchMemory()
+        let queue = DispatchQueue.global(qos: .utility)
+        queue.async { [weak self] in
+            let processes = ProcessMonitor.fetchProcesses()
+            let loadAvg = ProcessMonitor.fetchLoadAverage()
+            let (usedMB, totalMB) = ProcessMonitor.fetchMemory()
 
             let snapshot = SystemSnapshot(
                 timestamp: Date(),
@@ -40,8 +41,8 @@ final class ProcessMonitor: ObservableObject {
                 processes: processes
             )
 
-            await MainActor.run {
-                self.latestSnapshot = snapshot
+            DispatchQueue.main.async {
+                self?.latestSnapshot = snapshot
             }
         }
     }
@@ -164,11 +165,12 @@ final class ProcessMonitor: ObservableObject {
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return ""
         }
+        // Read pipe BEFORE waitUntilExit to avoid deadlock when output exceeds pipe buffer
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         return String(data: data, encoding: .utf8) ?? ""
     }
 }
