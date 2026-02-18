@@ -14,10 +14,7 @@ struct CrackedApp: App {
         .menuBarExtraStyle(.window)
 
         Window("Records & Stats", id: "stats") {
-            StatsView(
-                viewModel: StatsViewModel(db: viewModel.db),
-                menuBarViewModel: viewModel
-            )
+            StatsWindowContent(menuBarViewModel: viewModel)
         }
 
         Settings {

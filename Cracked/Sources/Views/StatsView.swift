@@ -2,6 +2,22 @@ import SwiftUI
 import Charts
 import AppKit
 
+/// Wrapper that owns the StatsViewModel lifecycle so it survives SwiftUI re-renders.
+struct StatsWindowContent: View {
+    @ObservedObject var menuBarViewModel: MenuBarViewModel
+    @StateObject private var statsViewModel: StatsViewModel
+
+    init(menuBarViewModel: MenuBarViewModel) {
+        self.menuBarViewModel = menuBarViewModel
+        // StateObject init only runs once, so db is captured stably
+        _statsViewModel = StateObject(wrappedValue: StatsViewModel(db: menuBarViewModel.db))
+    }
+
+    var body: some View {
+        StatsView(viewModel: statsViewModel, menuBarViewModel: menuBarViewModel)
+    }
+}
+
 struct StatsView: View {
     @ObservedObject var viewModel: StatsViewModel
     @ObservedObject var menuBarViewModel: MenuBarViewModel
