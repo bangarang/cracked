@@ -90,12 +90,14 @@ final class MenuBarViewModel: ObservableObject {
             .filter { $0.cpuPercent >= cpuThreshold }
             .sorted { $0.cpuPercent > $1.cpuPercent }
 
+        // For stale apps, use only the main app executable (not helpers/renderers)
         staleApps = userApps
             .filter { $0.uptimeSeconds >= stalenessThresholdSeconds && $0.cpuPercent < cpuThreshold }
+            .filter { !$0.name.contains("Helper") }
             .sorted { $0.uptimeSeconds > $1.uptimeSeconds }
-        // Deduplicate stale apps by name, keeping the longest-running instance
+        // Deduplicate by display name, keeping the longest-running instance
         var seen = Set<String>()
-        staleApps = staleApps.filter { seen.insert($0.name).inserted }
+        staleApps = staleApps.filter { seen.insert($0.displayName).inserted }
 
         // Tracked app counts (computed from full process list)
         trackedApps = computeTrackedApps(from: snapshot.processes)
