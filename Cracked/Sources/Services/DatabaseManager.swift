@@ -146,6 +146,45 @@ final class DatabaseManager: Sendable {
         }
     }
 
+    // MARK: - Downsampling
+
+    /// Downsample old snapshots: keep per-minute for 24h, per-hour for 30d, daily after that.
+    func downsample() throws {
+        try dbQueue.write { db in
+            let now = Date().timeIntervalSince1970
+
+            // Delete raw process_snaps older than 24 hours
+            let oneDayAgo = now - 86400
+            try db.execute(sql: """
+                DELETE FROM process_snaps
+                WHERE snapshotId IN (SELECT id FROM snapshots WHERE timestamp < ?)
+                """, arguments: [oneDayAgo])
+
+            // For data between 1-30 days old: keep one snapshot per hour
+            let thirtyDaysAgo = now - (30 * 86400)
+            try db.execute(sql: """
+                DELETE FROM snapshots
+                WHERE timestamp < ? AND timestamp > ?
+                AND id NOT IN (
+                    SELECT MIN(id) FROM snapshots
+                    WHERE timestamp < ? AND timestamp > ?
+                    GROUP BY CAST(timestamp / 3600 AS INTEGER)
+                )
+                """, arguments: [oneDayAgo, thirtyDaysAgo, oneDayAgo, thirtyDaysAgo])
+
+            // For data older than 30 days: keep one snapshot per day
+            try db.execute(sql: """
+                DELETE FROM snapshots
+                WHERE timestamp < ?
+                AND id NOT IN (
+                    SELECT MIN(id) FROM snapshots
+                    WHERE timestamp < ?
+                    GROUP BY CAST(timestamp / 86400 AS INTEGER)
+                )
+                """, arguments: [thirtyDaysAgo, thirtyDaysAgo])
+        }
+    }
+
     // MARK: - Trend queries
 
     func recentSnapshots(hours: Int = 24) throws -> [SnapshotRecord] {
