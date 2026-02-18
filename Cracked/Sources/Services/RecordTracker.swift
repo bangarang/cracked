@@ -9,11 +9,11 @@ final class RecordTracker {
 
     /// Check current state for new records. Returns list of human-readable record messages.
     func checkForRecords(processes: [ProcessSnapshot], totalProcessCount: Int) throws -> [String] {
-        let userProcesses = processes.filter { !$0.isSystemProcess }
+        let userApps = processes.filter { $0.isUserApp }
         var messages: [String] = []
 
         // 1. Peak CPU for any single process (user apps only)
-        if let topCPU = userProcesses.max(by: { $0.cpuPercent < $1.cpuPercent }), topCPU.cpuPercent > 50 {
+        if let topCPU = userApps.max(by: { $0.cpuPercent < $1.cpuPercent }), topCPU.cpuPercent > 50 {
             let existing = try db.currentRecord(type: "peak_cpu")
             if existing == nil || topCPU.cpuPercent > existing!.value {
                 try db.saveRecord(
@@ -27,7 +27,7 @@ final class RecordTracker {
         }
 
         // 2. Most processes from a single app (user apps only)
-        let grouped = Dictionary(grouping: userProcesses, by: \.name)
+        let grouped = Dictionary(grouping: userApps, by: \.name)
         for (appName, appProcesses) in grouped where appProcesses.count >= 10 {
             let count = Double(appProcesses.count)
             let existing = try db.currentRecord(type: "process_count", appName: appName)
@@ -57,7 +57,7 @@ final class RecordTracker {
         }
 
         // 4. Longest uptime for a single app (user apps only)
-        if let longestRunning = userProcesses.max(by: { $0.uptimeSeconds < $1.uptimeSeconds }),
+        if let longestRunning = userApps.max(by: { $0.uptimeSeconds < $1.uptimeSeconds }),
            longestRunning.uptimeSeconds >= 86400 {
             let days = Double(longestRunning.uptimeSeconds) / 86400.0
             let existing = try db.currentRecord(type: "longest_uptime", appName: longestRunning.name)

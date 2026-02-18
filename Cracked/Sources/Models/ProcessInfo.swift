@@ -14,6 +14,11 @@ struct ProcessSnapshot: Sendable, Identifiable {
         uid < 500
     }
 
+    /// User-installed apps live under /Applications/.
+    var isUserApp: Bool {
+        name.contains("/Applications/")
+    }
+
     var uptimeFormatted: String {
         if uptimeSeconds >= 86400 {
             return "\(uptimeSeconds / 86400)d"

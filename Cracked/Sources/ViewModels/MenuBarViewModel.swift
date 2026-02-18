@@ -120,15 +120,11 @@ final class MenuBarViewModel: ObservableObject {
             try? db?.downsample()
         }
 
-        // Check for new records
-        if let records = try? recordTracker?.checkForRecords(
+        // Check for new records (tracked silently, viewable in Records & Stats)
+        _ = try? recordTracker?.checkForRecords(
             processes: snapshot.processes,
             totalProcessCount: snapshot.totalProcesses
-        ) {
-            for message in records {
-                notificationManager.sendRecordNotification(message: message)
-            }
-        }
+        )
     }
 
     func killProcess(_ process: ProcessSnapshot) {
