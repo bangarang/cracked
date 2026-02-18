@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ProcessRowView: View {
     let process: ProcessSnapshot
@@ -6,12 +7,15 @@ struct ProcessRowView: View {
     let action: () -> Void
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(process.name)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1)
+        HStack(spacing: 8) {
+            if let icon = appIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 20, height: 20)
             }
+            Text(process.displayName)
+                .font(.system(.body))
+                .lineLimit(1)
             Spacer()
             if process.cpuPercent >= 1.0 {
                 Text(String(format: "%.0f%%", process.cpuPercent))
@@ -29,5 +33,11 @@ struct ProcessRowView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
+    }
+
+    private var appIcon: NSImage? {
+        guard let path = process.appBundlePath else { return nil }
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        return NSWorkspace.shared.icon(forFile: path)
     }
 }

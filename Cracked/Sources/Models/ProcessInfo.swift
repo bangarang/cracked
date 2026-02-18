@@ -19,6 +19,25 @@ struct ProcessSnapshot: Sendable, Identifiable {
         name.contains("/Applications/")
     }
 
+    /// Extracts the .app bundle name as a clean display name.
+    /// e.g. "/Applications/Warp.app/Contents/MacOS/Warp" → "Warp"
+    var displayName: String {
+        guard let range = name.range(of: ".app/") ?? name.range(of: ".app") else {
+            return (name as NSString).lastPathComponent
+        }
+        let appPath = String(name[name.startIndex..<range.lowerBound])
+        return (appPath as NSString).lastPathComponent
+    }
+
+    /// Path to the .app bundle, for loading icons.
+    /// e.g. "/Applications/Warp.app/Contents/MacOS/Warp" → "/Applications/Warp.app"
+    var appBundlePath: String? {
+        guard let range = name.range(of: ".app/") ?? name.range(of: ".app") else {
+            return nil
+        }
+        return String(name[name.startIndex...range.lowerBound]) + "app"
+    }
+
     var uptimeFormatted: String {
         if uptimeSeconds >= 86400 {
             return "\(uptimeSeconds / 86400)d"
