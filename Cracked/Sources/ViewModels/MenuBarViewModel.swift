@@ -12,7 +12,11 @@ final class MenuBarViewModel: ObservableObject {
     @Published var iconState: IconState = .normal
 
     let monitor = ProcessMonitor()
+    let alertEngine = AlertEngine()
+    let notificationManager = NotificationManager.shared
+    private(set) var db: DatabaseManager?
     private var started = false
+    private var persistCounter = 0
 
     // Thresholds (will be configurable later via Settings)
     var cpuThreshold: Double = 30.0
@@ -47,6 +51,8 @@ final class MenuBarViewModel: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
+        notificationManager.requestPermission()
+        db = try? DatabaseManager()
         monitor.start()
         // Observe changes from monitor
         Task {
@@ -85,6 +91,21 @@ final class MenuBarViewModel: ObservableObject {
             iconState = .warning
         } else {
             iconState = .normal
+        }
+
+        // Check for alerts
+        let alerts = alertEngine.evaluate(
+            processes: snapshot.processes,
+            loadAverage: snapshot.loadAverage
+        )
+        for alert in alerts {
+            notificationManager.sendAlert(alert)
+        }
+
+        // Persist snapshot to database (every 12th poll ~ once per minute at 5s interval)
+        persistCounter += 1
+        if persistCounter % 12 == 0 {
+            try? db?.saveSnapshot(snapshot)
         }
     }
 
