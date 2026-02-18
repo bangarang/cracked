@@ -117,6 +117,7 @@ struct MenuBarView: View {
             .padding(.vertical, 6)
         }
         .frame(width: 340)
+        .onAppear { viewModel.refreshNow() }
     }
 
     private func sectionHeader(_ title: String) -> some View {

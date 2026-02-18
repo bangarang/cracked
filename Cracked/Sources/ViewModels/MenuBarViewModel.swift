@@ -192,6 +192,10 @@ final class MenuBarViewModel: ObservableObject {
         return results
     }
 
+    func refreshNow() {
+        monitor.pollNow()
+    }
+
     func killProcess(_ process: ProcessSnapshot) {
         kill(process.pid, SIGTERM)
     }

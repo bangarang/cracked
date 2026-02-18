@@ -25,6 +25,10 @@ final class ProcessMonitor: ObservableObject {
         timer = nil
     }
 
+    func pollNow() {
+        pollAsync()
+    }
+
     private func pollAsync() {
         let queue = DispatchQueue.global(qos: .utility)
         queue.async { [weak self] in
