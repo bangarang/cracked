@@ -12,10 +12,10 @@ final class ProcessMonitor: ObservableObject {
     }
 
     func start() {
-        poll()
+        pollAsync()
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.poll()
+                self?.pollAsync()
             }
         }
     }
@@ -25,24 +25,30 @@ final class ProcessMonitor: ObservableObject {
         timer = nil
     }
 
-    private func poll() {
-        let processes = Self.fetchProcesses()
-        let loadAvg = Self.fetchLoadAverage()
-        let (usedMB, totalMB) = Self.fetchMemory()
+    private func pollAsync() {
+        Task.detached {
+            let processes = Self.fetchProcesses()
+            let loadAvg = Self.fetchLoadAverage()
+            let (usedMB, totalMB) = Self.fetchMemory()
 
-        latestSnapshot = SystemSnapshot(
-            timestamp: Date(),
-            loadAverage: loadAvg,
-            totalProcesses: processes.count,
-            memoryUsedMB: usedMB,
-            memoryTotalMB: totalMB,
-            processes: processes
-        )
+            let snapshot = SystemSnapshot(
+                timestamp: Date(),
+                loadAverage: loadAvg,
+                totalProcesses: processes.count,
+                memoryUsedMB: usedMB,
+                memoryTotalMB: totalMB,
+                processes: processes
+            )
+
+            await MainActor.run {
+                self.latestSnapshot = snapshot
+            }
+        }
     }
 
     // MARK: - Process list
 
-    static func fetchProcesses() -> [ProcessSnapshot] {
+    nonisolated static func fetchProcesses() -> [ProcessSnapshot] {
         let output = shell("ps", "-axo", "uid,pid,pcpu,rss,etime,comm")
         return parsePsOutput(output)
     }
@@ -109,7 +115,7 @@ final class ProcessMonitor: ObservableObject {
 
     // MARK: - Load average
 
-    static func fetchLoadAverage() -> Double {
+    nonisolated static func fetchLoadAverage() -> Double {
         let output = shell("sysctl", "-n", "vm.loadavg")
         return parseLoadAverage(output)
     }
@@ -125,7 +131,7 @@ final class ProcessMonitor: ObservableObject {
 
     // MARK: - Memory
 
-    static func fetchMemory() -> (usedMB: Int, totalMB: Int) {
+    nonisolated static func fetchMemory() -> (usedMB: Int, totalMB: Int) {
         let totalBytes = ProcessInfo.processInfo.physicalMemory
         let totalMB = Int(totalBytes / 1_048_576)
 
@@ -149,7 +155,7 @@ final class ProcessMonitor: ObservableObject {
 
     // MARK: - Shell helper
 
-    private static func shell(_ args: String...) -> String {
+    nonisolated private static func shell(_ args: String...) -> String {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
