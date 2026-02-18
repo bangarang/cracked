@@ -134,22 +134,45 @@ struct StatsView: View {
 
             HStack(spacing: 16) {
                 ForEach(menuBarViewModel.trackedApps) { app in
-                    HStack(spacing: 8) {
-                        if let path = app.appBundlePath,
-                           FileManager.default.fileExists(atPath: path) {
-                            Image(nsImage: NSWorkspace.shared.icon(forFile: path))
-                                .resizable()
-                                .frame(width: 28, height: 28)
+                    let pr = prRecord(for: app)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            if let path = app.appBundlePath,
+                               FileManager.default.fileExists(atPath: path) {
+                                Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                                    .resizable()
+                                    .frame(width: 28, height: 28)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(app.name)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                    Text("\(app.count)")
+                                        .font(.title2.bold().monospacedDigit())
+                                    Text(app.label)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
                         }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(app.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(app.count)")
-                                .font(.title2.bold().monospacedDigit())
-                            Text(app.label)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                        if let pr {
+                            Divider()
+                            HStack(spacing: 4) {
+                                Text("PR")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(.orange)
+                                    .foregroundStyle(.white)
+                                    .clipShape(Capsule())
+                                Text("\(Int(pr.value)) \(app.label)")
+                                    .font(.caption.bold().monospacedDigit())
+                                Spacer()
+                                Text(Date(timeIntervalSince1970: pr.achievedAt), style: .date)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
                     .padding(12)
@@ -159,6 +182,11 @@ struct StatsView: View {
                 }
             }
         }
+    }
+
+    private func prRecord(for app: MenuBarViewModel.TrackedAppCount) -> RecordEntry? {
+        let recordType = "peak_\(app.label)"
+        return viewModel.records.first { $0.recordType == recordType && $0.appName == app.name }
     }
 
     // MARK: - App Activity (Strava-style)
