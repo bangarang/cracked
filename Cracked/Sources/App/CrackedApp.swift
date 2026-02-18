@@ -12,5 +12,9 @@ struct CrackedApp: App {
                 .foregroundStyle(viewModel.iconState.color)
         }
         .menuBarExtraStyle(.window)
+
+        Window("Records & Stats", id: "stats") {
+            StatsView(viewModel: StatsViewModel(db: viewModel.db))
+        }
     }
 }

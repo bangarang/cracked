@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @ObservedObject var viewModel: MenuBarViewModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -70,6 +71,13 @@ struct MenuBarView: View {
             Divider()
 
             // Menu items
+            Button("Records & Stats...") {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                openWindow(id: "stats")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
