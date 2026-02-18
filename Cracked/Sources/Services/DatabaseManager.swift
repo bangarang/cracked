@@ -109,14 +109,25 @@ final class DatabaseManager: Sendable {
 
     func saveRecord(type: String, value: Double, appName: String? = nil, details: String? = nil) throws {
         try dbQueue.write { db in
-            var record = RecordEntry(
-                recordType: type,
-                value: value,
-                appName: appName,
-                achievedAt: Date().timeIntervalSince1970,
-                details: details
-            )
-            try record.insert(db)
+            // Update existing record if one exists for this type+app, otherwise insert
+            if let existing = try RecordEntry
+                .filter(Column("recordType") == type)
+                .filter(appName != nil ? Column("appName") == appName : Column("appName") == nil)
+                .fetchOne(db) {
+                try db.execute(
+                    sql: "UPDATE records SET value = ?, achievedAt = ?, details = ? WHERE id = ?",
+                    arguments: [value, Date().timeIntervalSince1970, details, existing.id]
+                )
+            } else {
+                var record = RecordEntry(
+                    recordType: type,
+                    value: value,
+                    appName: appName,
+                    achievedAt: Date().timeIntervalSince1970,
+                    details: details
+                )
+                try record.insert(db)
+            }
         }
     }
 

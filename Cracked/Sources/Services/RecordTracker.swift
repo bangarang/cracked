@@ -56,22 +56,6 @@ final class RecordTracker {
             }
         }
 
-        // 4. Longest uptime for a single app (user apps only)
-        if let longestRunning = userApps.max(by: { $0.uptimeSeconds < $1.uptimeSeconds }),
-           longestRunning.uptimeSeconds >= 86400 {
-            let days = Double(longestRunning.uptimeSeconds) / 86400.0
-            let existing = try db.currentRecord(type: "longest_uptime", appName: longestRunning.name)
-            if existing == nil || days > existing!.value {
-                try db.saveRecord(
-                    type: "longest_uptime",
-                    value: days,
-                    appName: longestRunning.name,
-                    details: "\(longestRunning.uptimeFormatted)"
-                )
-                messages.append("\(longestRunning.name) running for \(Int(days)) days!")
-            }
-        }
-
         return messages
     }
 }
