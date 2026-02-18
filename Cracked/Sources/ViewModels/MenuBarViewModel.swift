@@ -76,13 +76,13 @@ final class MenuBarViewModel: ObservableObject {
         memoryTotalGB = snapshot.memoryTotalGB
         totalProcesses = snapshot.totalProcesses
 
-        let userProcesses = snapshot.processes.filter { !$0.isSystemProcess }
+        let userApps = snapshot.processes.filter { $0.isUserApp }
 
-        cpuHogs = userProcesses
+        cpuHogs = userApps
             .filter { $0.cpuPercent >= cpuThreshold }
             .sorted { $0.cpuPercent > $1.cpuPercent }
 
-        staleApps = userProcesses
+        staleApps = userApps
             .filter { $0.uptimeSeconds >= stalenessThresholdSeconds && $0.cpuPercent < cpuThreshold }
             .sorted { $0.uptimeSeconds > $1.uptimeSeconds }
         // Deduplicate stale apps by name, keeping the longest-running instance
@@ -100,9 +100,9 @@ final class MenuBarViewModel: ObservableObject {
             iconState = .normal
         }
 
-        // Check for alerts (only user apps, not system daemons)
+        // Check for alerts (only /Applications/ apps)
         let alerts = alertEngine.evaluate(
-            processes: userProcesses,
+            processes: userApps,
             loadAverage: snapshot.loadAverage
         )
         for alert in alerts {
