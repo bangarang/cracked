@@ -23,6 +23,7 @@
 		AB531BEBFC242E6460D628F1 /* RecordTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF28E46701D024BC864382B /* RecordTrackerTests.swift */; };
 		AF48DF03A8437A420876DC46 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C532FA8BA2D92CB2EC08D345 /* DatabaseManager.swift */; };
 		C51A98D978B769FD376B5911 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9FF0FAD489A18CFD69CD98A /* MenuBarView.swift */; };
+		D7DC10E5F7D50146824E4873 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FD8D0F4EB12AC6A9675805F8 /* Assets.xcassets */; };
 		E1E3E1A8FA691788AE0B9E64 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F6248F118882F38F417DBC /* DatabaseModels.swift */; };
 		E65E940EB372D21BB1049452 /* RecordTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */; };
 		F522356289C547654A031400 /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA6A2660C776C2F4FE16745 /* ProcessMonitor.swift */; };
@@ -61,6 +62,7 @@
 		EDF0B6A5A6AE147797086478 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		F8F6248F118882F38F417DBC /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseModels.swift; sourceTree = "<group>"; };
 		FB9B8D24B519FBF2FD900F9C /* CrackedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrackedApp.swift; sourceTree = "<group>"; };
+		FD8D0F4EB12AC6A9675805F8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,10 +97,20 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		2DEEB70CBC0CEDFA659F7307 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FD8D0F4EB12AC6A9675805F8 /* Assets.xcassets */,
+			);
+			name = Resources;
+			path = Cracked/Resources;
+			sourceTree = "<group>";
+		};
 		48980E9BE28E66C258CB9BBD = {
 			isa = PBXGroup;
 			children = (
 				12C1AF85CD5AA528465B79F9 /* CrackedTests */,
+				2DEEB70CBC0CEDFA659F7307 /* Resources */,
 				A544A123E6941879B4785D91 /* Sources */,
 				77161DFB6394654B19DA848C /* Products */,
 			);
@@ -175,6 +187,7 @@
 			buildConfigurationList = 90E79D562EC3B69031D18F22 /* Build configuration list for PBXNativeTarget "Cracked" */;
 			buildPhases = (
 				636C05D36D7778FD51B0B75D /* Sources */,
+				4DB7A3EA747057E17B2BEC9B /* Resources */,
 				25BFA3655C651FBBC24A95B9 /* Frameworks */,
 			);
 			buildRules = (
@@ -215,9 +228,10 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 1572C5CB93A45CC311F9CF0C /* Build configuration list for PBXProject "Cracked" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -230,6 +244,7 @@
 				E6BC9473BCA292905AE555B4 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 77161DFB6394654B19DA848C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -238,6 +253,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4DB7A3EA747057E17B2BEC9B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D7DC10E5F7D50146824E4873 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		636C05D36D7778FD51B0B75D /* Sources */ = {
