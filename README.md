@@ -24,7 +24,7 @@
 > 2. *Drums:* the snap of a perfectly hit snare.
 > 3. *Slang:* absurdly, unreasonably impressive. As in *"262 browser renderer processes? That's cracked."*
 
-Your Mac is probably all three. Cracked sits in the menu bar and lets you know.
+Your Mac is probably all three. Cracked sits in the menu bar and lets you know. It also keeps tabs on your Claude Code agents.
 
 ## Why
 
@@ -60,6 +60,23 @@ Cracked counts what you're actually juggling and logs every **PR**:
 - **Warp tabs**
 
 Every app gets a history chart and a PR badge with the date you set it. Beat your record of 161 tabs and you have a new PR. We're not judging. (We're judging a little.)
+
+### 🤖 Mission control for your Claude Code agents
+Running seven Claude Code sessions across five terminals? Cracked keeps track of them for you.
+
+- **Agent inbox:** every session shows up under **Agents** as *working*, *done* or *needs input*, with the permission it's waiting on. Sessions that are blocked or finished put a count next to the menu bar icon. Click a session to bring its terminal to the front.
+- **Optional notifications** when an agent finishes or gets stuck. Click one to jump straight to that session.
+- **MCP server:** agents can call `system_status`, `list_agent_sessions` and `get_records`, and, with your approval, `restart_app` or `snooze_app`. Restarts only work on apps already listed under Worth a Restart.
+- **Load warnings:** when your Mac is struggling, new sessions are told so automatically ("load 46 on 16 cores · Xcode 140%"), so agents run builds one at a time instead of piling on.
+
+Connect it from **Settings → Claude Code**, or from a terminal:
+
+```bash
+/Applications/Cracked.app/Contents/MacOS/Cracked setup     # hooks + MCP server
+/Applications/Cracked.app/Contents/MacOS/Cracked status    # what's going on right now
+```
+
+Setup adds hooks to `~/.claude/settings.json` (it backs up the original first and leaves your other settings alone) and registers the MCP server with `claude mcp add`. `Cracked uninstall` removes both.
 
 ### 🏆 All-Time Records & the Hall of Shame
 The **Records & Stats** window brings it all together:
@@ -117,6 +134,8 @@ Look for the gauge in your menu bar. Cracked runs as a menu bar–only app, so i
 - **`AlertEngine`** applies the CPU, staleness and load thresholds, with per-process cooldowns
 - **`RecordTracker`** notices when you've done something legendary and writes it down
 - **`DatabaseManager`** runs GRDB migrations, stores snapshots and handles downsampling
+- **`AgentInbox`** turns Claude Code hook events into session state, stored as one small JSON file per session
+- **`MCPServer`** is a small hand-written MCP server over stdio, with no extra dependencies. It runs from the same binary: `Cracked mcp`
 
 The project is generated from [`project.yml`](project.yml). Run the tests with:
 

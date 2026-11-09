@@ -10,6 +10,10 @@ struct CrackedApp: App {
             Image(systemName: viewModel.iconState.systemImage)
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(viewModel.iconState.color)
+            // Claude Code sessions waiting on you
+            if viewModel.agentsWaitingCount > 0 {
+                Text("\(viewModel.agentsWaitingCount)")
+            }
         }
         .menuBarExtraStyle(.window)
 

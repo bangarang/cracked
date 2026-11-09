@@ -49,6 +49,17 @@ struct MenuBarView: View {
                 }
             }
 
+            // Claude Code sessions reporting through hooks
+            if !viewModel.agentSessions.isEmpty {
+                sectionHeader("Agents")
+                ForEach(sortedAgents.prefix(6)) { session in
+                    AgentRowView(session: session) {
+                        viewModel.focusAgent(session)
+                    }
+                    .padding(.horizontal, 8)
+                }
+            }
+
             // Tracked Apps
             if !viewModel.trackedApps.isEmpty {
                 sectionHeader("Tracked Apps")
@@ -73,7 +84,8 @@ struct MenuBarView: View {
             }
 
             // Nothing to report
-            if viewModel.cpuHogs.isEmpty && viewModel.staleApps.isEmpty && viewModel.trackedApps.isEmpty {
+            if viewModel.cpuHogs.isEmpty && viewModel.staleApps.isEmpty && viewModel.trackedApps.isEmpty
+                && viewModel.agentSessions.isEmpty {
                 Text("All systems nominal")
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
@@ -118,7 +130,18 @@ struct MenuBarView: View {
             .padding(.vertical, 6)
         }
         .frame(width: 340)
-        .onAppear { viewModel.refreshNow() }
+        .onAppear {
+            viewModel.refreshNow()
+            viewModel.markAgentsSeen()
+        }
+    }
+
+    /// Blocked sessions first, then finished, working and idle; newest first within each.
+    private var sortedAgents: [AgentSession] {
+        let rank: [AgentSession.Status: Int] = [.needsInput: 0, .done: 1, .working: 2, .ready: 3]
+        return viewModel.agentSessions.sorted {
+            (rank[$0.status]!, $1.updatedAt) < (rank[$1.status]!, $0.updatedAt)
+        }
     }
 
     private func sectionHeader(_ title: String) -> some View {

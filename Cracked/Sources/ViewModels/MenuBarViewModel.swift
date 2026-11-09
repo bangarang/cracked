@@ -12,6 +12,9 @@ final class MenuBarViewModel: ObservableObject {
     @Published var memoryTotalGB: Double = 0
     @Published var totalProcesses: Int = 0
     @Published var iconState: IconState = .normal
+    @Published var agentSessions: [AgentSession] = []
+    /// Sessions that finished or got blocked since the menu was last opened.
+    @Published var agentsWaitingCount: Int = 0
 
     struct TrackedAppCount: Identifiable {
         let id = UUID()
@@ -28,8 +31,12 @@ final class MenuBarViewModel: ObservableObject {
     private var recordTracker: RecordTracker?
     private var started = false
     private var persistCounter = 0
+    private var agentsLastSeenAt = Date()
+    private var knownAgentStatuses: [String: AgentSession.Status]?
+    private var agentObserver: NSObjectProtocol?
 
-    @AppStorage("cpuThreshold") var cpuThreshold: Double = 30.0
+    @AppStorage("cpuThreshold") var cpuThreshold: Double = CrackedSettings.defaultCPUThreshold
+    @AppStorage("agentNotifications") private var agentNotifications: Bool = false
     @AppStorage("stalenessThresholdDays") private var stalenessThresholdDays: Int = 7
     @AppStorage("restartMemoryThresholdGB") private var restartMemoryThresholdGB: Double = 2.0
     @AppStorage("pollIntervalSeconds") private var pollInterval: Double = 5.0
@@ -69,6 +76,14 @@ final class MenuBarViewModel: ObservableObject {
         db = try? DatabaseManager()
         if let db { recordTracker = RecordTracker(db: db) }
         monitor.start()
+        refreshAgents()
+        if agentNotifications { notificationManager.requestPermission() }
+        // `Cracked hook` posts this whenever a Claude Code session changes state.
+        agentObserver = DistributedNotificationCenter.default().addObserver(
+            forName: AgentInbox.changedNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshAgents() }
+        }
         // Observe changes from monitor
         Task {
             while true {
@@ -111,17 +126,13 @@ final class MenuBarViewModel: ObservableObject {
         )
 
         // Tracked app counts (computed from full process list)
-        trackedApps = computeTrackedApps(from: snapshot.processes)
+        trackedApps = Self.computeTrackedApps(from: snapshot.processes)
+        refreshAgents()
 
-        // Determine icon state
-        let hasCritical = cpuHogs.contains { $0.cpuPercent >= 100 }
-        let hasWarning = !cpuHogs.isEmpty || loadAverage > 8
-        if hasCritical || loadAverage > 20 {
-            iconState = .critical
-        } else if hasWarning {
-            iconState = .warning
-        } else {
-            iconState = .normal
+        switch PressureLevel.from(cpuHogs: cpuHogs, loadAverage: loadAverage) {
+        case .critical: iconState = .critical
+        case .warning: iconState = .warning
+        case .normal: iconState = .normal
         }
 
         // Persist snapshot to database (every 12th poll ~ once per minute at 5s interval)
@@ -158,7 +169,7 @@ final class MenuBarViewModel: ObservableObject {
         )
     }
 
-    private func computeTrackedApps(from processes: [ProcessSnapshot]) -> [TrackedAppCount] {
+    nonisolated static func computeTrackedApps(from processes: [ProcessSnapshot]) -> [TrackedAppCount] {
         var results: [TrackedAppCount] = []
 
         // Browser tabs: count "Helper (Renderer)" processes per browser
@@ -212,24 +223,49 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     func restartApp(_ app: StaleApp) {
-        let appURL = URL(fileURLWithPath: app.bundlePath)
-        let running = NSRunningApplication(processIdentifier: app.main.pid)
+        let pid = app.main.pid
+        let bundlePath = app.bundlePath
+        // Quits gracefully, waits for big apps to exit, then relaunches (off the main thread).
+        Task.detached {
+            AppActions.restart(pid: pid, bundlePath: bundlePath)
+            await MainActor.run { self.refreshNow() }
+        }
+    }
 
-        // Ask the app to quit gracefully (so it can save state), falling back to SIGTERM.
-        if let running {
-            running.terminate()
-        } else {
-            kill(app.main.pid, SIGTERM)
+    // MARK: - Agents
+
+    /// Re-reads the agent inbox, applies the transcript heuristic, and notifies
+    /// (if enabled) when a session newly finishes or needs input.
+    func refreshAgents() {
+        let sessions = AgentInbox.loadAll().map { session -> AgentSession in
+            var session = session
+            session.status = session.effectiveStatus(transcriptModifiedAt: AgentInbox.transcriptModifiedAt(session))
+            return session
         }
 
-        Task {
-            // Big apps (e.g. a browser with 170 processes) can take a while to quit.
-            for _ in 0..<40 {
-                if running?.isTerminated ?? (kill(app.main.pid, 0) != 0) { break }
-                try? await Task.sleep(for: .milliseconds(250))
+        if let known = knownAgentStatuses, agentNotifications {
+            for session in sessions where session.isWaiting && known[session.sessionID] != session.status {
+                notificationManager.sendAgentNotification(session)
             }
-            try? await NSWorkspace.shared.openApplication(at: appURL, configuration: .init())
-            refreshNow()
+        }
+        knownAgentStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionID, $0.status) })
+
+        if sessions != agentSessions { agentSessions = sessions }
+        let waiting = sessions.filter {
+            $0.status == .needsInput || ($0.status == .done && $0.updatedAt > agentsLastSeenAt)
+        }.count
+        if waiting != agentsWaitingCount { agentsWaitingCount = waiting }
+    }
+
+    /// Called when the dropdown opens: finished sessions have now been seen.
+    func markAgentsSeen() {
+        agentsLastSeenAt = Date()
+        refreshAgents()
+    }
+
+    func focusAgent(_ session: AgentSession) {
+        if let pid = session.terminalPID {
+            AppActions.activate(pid: pid)
         }
     }
 
