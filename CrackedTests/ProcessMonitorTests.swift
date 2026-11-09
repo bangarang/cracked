@@ -50,4 +50,28 @@ struct ProcessMonitorTests {
         let output = "{ 46.99 26.33 15.46 }"
         #expect(ProcessMonitor.parseLoadAverage(output) == 46.99)
     }
+
+    @Test("Stale apps only include apps the user launched, not bundle extensions")
+    func staleAppsIgnoreExtensions() {
+        let day = 86400
+        func proc(_ pid: Int32, _ name: String, uptime: Int, cpu: Double = 0) -> ProcessSnapshot {
+            ProcessSnapshot(id: pid, pid: pid, ppid: 1, uid: 501, name: name,
+                            cpuPercent: cpu, memoryMB: 100, uptimeSeconds: uptime)
+        }
+        let processes = [
+            proc(10, "/System/Applications/News.app/Contents/PlugIns/NewsToday2.appex/Contents/MacOS/NewsToday2", uptime: 20 * day),
+            proc(11, "/System/Applications/Home.app/Contents/PlugIns/HomeWidget.appex/Contents/MacOS/HomeWidget", uptime: 20 * day),
+            proc(20, "/Applications/Warp.app/Contents/MacOS/Warp", uptime: 22 * day),
+            proc(21, "/Applications/Spotify.app/Contents/MacOS/Spotify", uptime: 9 * day),
+            proc(22, "/Applications/Comet.app/Contents/MacOS/Comet", uptime: 30 * day, cpu: 150),
+            proc(23, "/Applications/Cursor.app/Contents/MacOS/Cursor", uptime: 2 * day),
+        ]
+        let stale = MenuBarViewModel.staleApps(
+            from: processes,
+            launchedAppPIDs: [20, 21, 22, 23],
+            stalenessThresholdSeconds: 7 * day,
+            cpuThreshold: 80
+        )
+        #expect(stale.map(\.displayName) == ["Warp", "Spotify"])
+    }
 }
