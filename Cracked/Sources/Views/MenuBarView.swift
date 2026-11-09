@@ -104,8 +104,8 @@ struct MenuBarView: View {
             .padding(.vertical, 6)
 
             Button("Settings...") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
+                openWindow(id: "settings")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)

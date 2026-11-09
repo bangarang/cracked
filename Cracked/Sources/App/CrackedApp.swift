@@ -17,8 +17,12 @@ struct CrackedApp: App {
             StatsWindowContent(menuBarViewModel: viewModel)
         }
 
-        Settings {
+        // A regular window rather than a `Settings` scene: menu bar-only apps can't
+        // reliably open the Settings scene (the old `showSettingsWindow:` action
+        // is a no-op on macOS 14+), but `openWindow` works like Records & Stats.
+        Window("Cracked Settings", id: "settings") {
             SettingsView()
         }
+        .windowResizability(.contentSize)
     }
 }
