@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AppKit
 
 @MainActor
 final class MenuBarViewModel: ObservableObject {
@@ -76,6 +77,21 @@ final class MenuBarViewModel: ObservableObject {
         }
     }
 
+    /// Long-running apps the user launched, longest-running first, one entry per app.
+    nonisolated static func staleApps(
+        from processes: [ProcessSnapshot],
+        launchedAppPIDs: Set<Int32>,
+        stalenessThresholdSeconds: Int,
+        cpuThreshold: Double
+    ) -> [ProcessSnapshot] {
+        var seen = Set<String>()
+        return processes
+            .filter { launchedAppPIDs.contains($0.pid) }
+            .filter { $0.uptimeSeconds >= stalenessThresholdSeconds && $0.cpuPercent < cpuThreshold }
+            .sorted { $0.uptimeSeconds > $1.uptimeSeconds }
+            .filter { seen.insert($0.displayName).inserted }
+    }
+
     private func updateFromSnapshot() {
         guard let snapshot = monitor.latestSnapshot else { return }
 
@@ -90,14 +106,20 @@ final class MenuBarViewModel: ObservableObject {
             .filter { $0.cpuPercent >= cpuThreshold }
             .sorted { $0.cpuPercent > $1.cpuPercent }
 
-        // For stale apps, use only the main app executable (not helpers/renderers)
-        staleApps = userApps
-            .filter { $0.uptimeSeconds >= stalenessThresholdSeconds && $0.cpuPercent < cpuThreshold }
-            .filter { !$0.name.contains("Helper") }
-            .sorted { $0.uptimeSeconds > $1.uptimeSeconds }
-        // Deduplicate by display name, keeping the longest-running instance
-        var seen = Set<String>()
-        staleApps = staleApps.filter { seen.insert($0.displayName).inserted }
+        // Only apps the user actually launched (regular, Dock-visible apps) can be stale.
+        // This excludes widget/Spotlight extensions (.appex), helpers and agents that
+        // macOS starts at login from inside app bundles the user may never have opened.
+        let launchedAppPIDs = Set(
+            NSWorkspace.shared.runningApplications
+                .filter { $0.activationPolicy == .regular }
+                .map(\.processIdentifier)
+        )
+        staleApps = Self.staleApps(
+            from: userApps,
+            launchedAppPIDs: launchedAppPIDs,
+            stalenessThresholdSeconds: stalenessThresholdSeconds,
+            cpuThreshold: cpuThreshold
+        )
 
         // Tracked app counts (computed from full process list)
         trackedApps = computeTrackedApps(from: snapshot.processes)
