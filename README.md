@@ -46,8 +46,10 @@ A gauge that stays calm until things get spicy:
 ### 🔥 CPU hogs, one click from dead
 Click the icon to see which apps are eating your cores right now, with their icons and clean names. Each row has a **Kill** button.
 
-### 🧟 Stale apps
-Apps you launched and then left running for days. Cracked only counts apps you actually opened: it ignores the widget extensions, Spotlight indexers and helper processes macOS starts at login. Each one gets a **Restart** button.
+### 🧟 Worth a Restart
+Not just "apps that are old". Messages and Slack are *meant* to run forever. Cracked flags an app only when it has been up for days **and** is using a lot of memory across all of its helper processes. That's the browser with 170 renderers sitting on 65 GB, not the notes app quietly using 165 MB.
+
+Each row says why it's there (`Comet  65 GB · 10d`) and has a **Restart** button that quits the app gracefully and relaunches it. Right-click a row to **snooze it for a week** or **never suggest it again**. Widget extensions, Spotlight indexers and other background bits macOS starts at login are never counted.
 
 ### 📊 Tracked apps, Strava-style
 Cracked counts what you're actually juggling and logs every **PR**:
@@ -68,7 +70,7 @@ The **Records & Stats** window brings it all together:
 - **Hall of Shame**: the five worst offenders by sustained CPU
 
 ### ⚙️ Tune it to your chaos
-Set the CPU alert threshold, the stale-app threshold in days, the poll interval and the alert cooldown, and turn on launch at login.
+Set the CPU alert threshold, when to suggest a restart (days running and GB used), the poll interval and the alert cooldown, manage your snoozed and ignored apps, and turn on launch at login.
 
 ## Privacy
 

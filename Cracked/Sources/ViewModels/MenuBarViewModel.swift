@@ -5,7 +5,7 @@ import AppKit
 @MainActor
 final class MenuBarViewModel: ObservableObject {
     @Published var cpuHogs: [ProcessSnapshot] = []
-    @Published var staleApps: [ProcessSnapshot] = []
+    @Published var staleApps: [StaleApp] = []
     @Published var trackedApps: [TrackedAppCount] = []
     @Published var loadAverage: Double = 0
     @Published var memoryUsedGB: Double = 0
@@ -31,6 +31,7 @@ final class MenuBarViewModel: ObservableObject {
 
     @AppStorage("cpuThreshold") var cpuThreshold: Double = 30.0
     @AppStorage("stalenessThresholdDays") private var stalenessThresholdDays: Int = 7
+    @AppStorage("restartMemoryThresholdGB") private var restartMemoryThresholdGB: Double = 2.0
     @AppStorage("pollIntervalSeconds") private var pollInterval: Double = 5.0
     @AppStorage("cooldownMinutes") private var cooldownMinutes: Int = 15
 
@@ -77,21 +78,6 @@ final class MenuBarViewModel: ObservableObject {
         }
     }
 
-    /// Long-running apps the user launched, longest-running first, one entry per app.
-    nonisolated static func staleApps(
-        from processes: [ProcessSnapshot],
-        launchedAppPIDs: Set<Int32>,
-        stalenessThresholdSeconds: Int,
-        cpuThreshold: Double
-    ) -> [ProcessSnapshot] {
-        var seen = Set<String>()
-        return processes
-            .filter { launchedAppPIDs.contains($0.pid) }
-            .filter { $0.uptimeSeconds >= stalenessThresholdSeconds && $0.cpuPercent < cpuThreshold }
-            .sorted { $0.uptimeSeconds > $1.uptimeSeconds }
-            .filter { seen.insert($0.displayName).inserted }
-    }
-
     private func updateFromSnapshot() {
         guard let snapshot = monitor.latestSnapshot else { return }
 
@@ -106,19 +92,22 @@ final class MenuBarViewModel: ObservableObject {
             .filter { $0.cpuPercent >= cpuThreshold }
             .sorted { $0.cpuPercent > $1.cpuPercent }
 
-        // Only apps the user actually launched (regular, Dock-visible apps) can be stale.
-        // This excludes widget/Spotlight extensions (.appex), helpers and agents that
-        // macOS starts at login from inside app bundles the user may never have opened.
+        // "Worth a Restart": apps the user launched (regular, Dock-visible apps, which
+        // excludes .appex extensions, helpers and agents macOS starts at login) that have
+        // been up for days AND are using enough memory, across all of their helper
+        // processes, that restarting them would actually free something.
         let launchedAppPIDs = Set(
             NSWorkspace.shared.runningApplications
                 .filter { $0.activationPolicy == .regular }
                 .map(\.processIdentifier)
         )
-        staleApps = Self.staleApps(
-            from: userApps,
+        staleApps = StaleAppDetector.detect(
+            processes: userApps,
             launchedAppPIDs: launchedAppPIDs,
             stalenessThresholdSeconds: stalenessThresholdSeconds,
-            cpuThreshold: cpuThreshold
+            memoryThresholdMB: Int(restartMemoryThresholdGB * 1024),
+            cpuThreshold: cpuThreshold,
+            ignoredBundlePaths: IgnoredApps.load().activeBundlePaths()
         )
 
         // Tracked app counts (computed from full process list)
@@ -222,16 +211,41 @@ final class MenuBarViewModel: ObservableObject {
         kill(process.pid, SIGTERM)
     }
 
-    func restartApp(_ process: ProcessSnapshot) {
-        let appName = process.name
-        kill(process.pid, SIGTERM)
+    func restartApp(_ app: StaleApp) {
+        let appURL = URL(fileURLWithPath: app.bundlePath)
+        let running = NSRunningApplication(processIdentifier: app.main.pid)
+
+        // Ask the app to quit gracefully (so it can save state), falling back to SIGTERM.
+        if let running {
+            running.terminate()
+        } else {
+            kill(app.main.pid, SIGTERM)
+        }
 
         Task {
-            try? await Task.sleep(for: .seconds(1))
-            let appURL = URL(fileURLWithPath: "/Applications/\(appName).app")
-            if FileManager.default.fileExists(atPath: appURL.path) {
-                try? await NSWorkspace.shared.openApplication(at: appURL, configuration: .init())
+            // Big apps (e.g. a browser with 170 processes) can take a while to quit.
+            for _ in 0..<40 {
+                if running?.isTerminated ?? (kill(app.main.pid, 0) != 0) { break }
+                try? await Task.sleep(for: .milliseconds(250))
             }
+            try? await NSWorkspace.shared.openApplication(at: appURL, configuration: .init())
+            refreshNow()
         }
+    }
+
+    func ignoreApp(_ app: StaleApp) {
+        updateIgnoredApps { $0.ignoreForever(app.bundlePath) }
+    }
+
+    func snoozeApp(_ app: StaleApp) {
+        updateIgnoredApps { $0.snooze(app.bundlePath) }
+    }
+
+    private func updateIgnoredApps(_ change: (inout IgnoredApps) -> Void) {
+        var ignored = IgnoredApps.load()
+        ignored.prune()
+        change(&ignored)
+        ignored.save()
+        staleApps.removeAll { ignored.activeBundlePaths().contains($0.bundlePath) }
     }
 }

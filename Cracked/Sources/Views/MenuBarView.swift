@@ -34,14 +34,15 @@ struct MenuBarView: View {
                 }
             }
 
-            // Stale Apps
+            // Worth a Restart: long-running apps using a lot of memory
             if !viewModel.staleApps.isEmpty {
-                sectionHeader("Stale Apps")
-                ForEach(viewModel.staleApps.prefix(5)) { process in
-                    ProcessRowView(
-                        process: process,
-                        actionLabel: "Restart",
-                        action: { viewModel.restartApp(process) }
+                sectionHeader("Worth a Restart")
+                ForEach(viewModel.staleApps.prefix(5)) { app in
+                    StaleAppRowView(
+                        app: app,
+                        onRestart: { viewModel.restartApp(app) },
+                        onSnooze: { viewModel.snoozeApp(app) },
+                        onIgnore: { viewModel.ignoreApp(app) }
                     )
                     .padding(.horizontal, 12)
                     .padding(.vertical, 2)
@@ -103,8 +104,8 @@ struct MenuBarView: View {
             .padding(.vertical, 6)
 
             Button("Settings...") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
+                openWindow(id: "settings")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
