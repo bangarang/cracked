@@ -290,14 +290,19 @@ enum AgentNavigator {
             NSWorkspace.shared.open(url)
             return
         }
-        if let bundlePath = session.terminalBundlePath,
-           T3Code.isT3Code(bundleID: Bundle(path: bundlePath)?.bundleIdentifier),
-           T3Code.open(sessionID: session.sessionID, appBundlePath: bundlePath) {
+        let bundleID = session.terminalBundlePath.flatMap { Bundle(path: $0)?.bundleIdentifier }
+        if T3Code.isT3Code(bundleID: bundleID), let bundlePath = session.terminalBundlePath {
+            // Finding the thread reads T3 Code's database, which may be busy: not on the main thread.
+            let sessionID = session.sessionID
+            let pid = session.terminalPID
+            Task.detached {
+                if !T3Code.open(sessionID: sessionID, appBundlePath: bundlePath), let pid {
+                    await MainActor.run { _ = AppActions.activate(pid: pid) }
+                }
+            }
             return
         }
-        if let tty = session.tty, let bundlePath = session.terminalBundlePath,
-           let bundleID = Bundle(path: bundlePath)?.bundleIdentifier,
-           let script = focusScript(bundleID: bundleID, tty: tty) {
+        if let tty = session.tty, let bundleID, let script = focusScript(bundleID: bundleID, tty: tty) {
             var error: NSDictionary?
             NSAppleScript(source: script)?.executeAndReturnError(&error)
             if error == nil { return }
