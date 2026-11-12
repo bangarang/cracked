@@ -11,11 +11,15 @@ struct SettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage(IgnoredApps.defaultsKey) private var ignoredAppsData: Data = Data()
     @AppStorage("agentNotifications") private var agentNotifications: Bool = false
+    @AppStorage(SidePulseLights.enabledKey) private var sidePulseEnabled: Bool = true
+    @AppStorage(SidePulseLights.brightnessKey) private var sidePulseBrightness: Int = 255
 
     @State private var hooksInstalled = ClaudeCodeSetup.areHooksInstalled
     @State private var mcpInstalled = ClaudeCodeSetup.isMCPInstalled
     @State private var mcpBusy = false
     @State private var setupError: String?
+    @State private var sidePulseDevices: [SidePulseDevice] = []
+    @State private var sidePulseServiceRunning = false
 
     private var ignoredApps: IgnoredApps { IgnoredApps(data: ignoredAppsData) }
 
@@ -45,6 +49,7 @@ struct SettingsView: View {
             }
 
             claudeCodeSection
+            sidePulseSection
 
             Section {
                 numberField("Check every", value: $pollInterval, unit: "seconds")
@@ -63,10 +68,53 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 720)
+        .frame(width: 460, height: 780)
         .onAppear {
             hooksInstalled = ClaudeCodeSetup.areHooksInstalled
             mcpInstalled = ClaudeCodeSetup.isMCPInstalled
+            sidePulseDevices = SidePulse.discover()
+            sidePulseServiceRunning = SidePulse.isServiceRunning()
+        }
+    }
+
+    // MARK: - SidePulse
+
+    private var sidePulseSection: some View {
+        Section {
+            Toggle(isOn: $sidePulseEnabled) {
+                Text("Show agent status on SidePulse")
+                Text("Amber when an agent needs you, cyan while working, solid when done")
+            }
+
+            LabeledContent("Brightness") {
+                Slider(value: Binding(get: { Double(sidePulseBrightness) },
+                                      set: { sidePulseBrightness = Int($0) }),
+                       in: 10...255)
+                    .frame(width: 180)
+            }
+            .disabled(!sidePulseEnabled)
+
+            if sidePulseDevices.isEmpty {
+                Text("No SidePulse connected. A Dot needs its USB storage turned on.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(sidePulseDevices) { device in
+                    LabeledContent(device.model.rawValue) {
+                        Text([device.serial, device.version.map { "v\($0)" }].compactMap { $0 }.joined(separator: " · "))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if sidePulseServiceRunning {
+                Text("SidePulse's own background service is running and drives the lights, so Cracked leaves them alone. Stop or uninstall it to let Cracked take over.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            Text("SidePulse")
         }
     }
 

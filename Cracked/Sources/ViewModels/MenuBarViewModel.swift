@@ -40,6 +40,7 @@ final class MenuBarViewModel: ObservableObject {
     private var knownAgentStatuses: [String: AgentSession.Status]?
     private var agentObserver: NSObjectProtocol?
     private let paseoReader = PaseoAgentReader()
+    private let sidePulse = SidePulseLights()
     private var lastOllamaPoll = Date.distantPast
     private var ollamaPollInFlight = false
 
@@ -306,6 +307,7 @@ final class MenuBarViewModel: ObservableObject {
             $0.status == .needsInput || ($0.isWaiting && $0.updatedAt > agentsLastSeenAt)
         }.count
         if waiting != agentsWaitingCount { agentsWaitingCount = waiting }
+        sidePulse.update(sessions: sessions, seenSince: agentsLastSeenAt)
     }
 
     /// Called when the dropdown opens: finished sessions have now been seen.

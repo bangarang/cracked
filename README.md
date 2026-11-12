@@ -86,6 +86,18 @@ Connect it from **Settings → Claude Code**, or from a terminal:
 
 Setup adds hooks to `~/.claude/settings.json` (it backs up the original first and leaves your other settings alone) and registers the MCP server with `claude mcp add`. `Cracked uninstall` removes both.
 
+### 💡 SidePulse lights
+Got a [SidePulse](https://sidepulse.io) Pro (SD card) or Dot (USB-C)? Cracked lights it up with your agents, from the same list as the menu, with no SidePulse software running:
+
+| Lights | When |
+| --- | --- |
+| Amber pulse | An agent needs your input or hit an error |
+| Cyan roll | An agent is working |
+| Solid cyan | An agent finished, until you open Cracked's menu (or 20 minutes pass) |
+| Dim pulse | Nothing going on |
+
+Cracked writes the device's `LEDS.LED` only when the state changes, fades the lights out when your Mac sleeps, and keeps the Pro's SD card awake. Turn it off or set the brightness in **Settings → SidePulse**. A Dot needs its USB storage on, so it mounts as a drive. While SidePulse's own background service is running, Cracked leaves the lights to it.
+
 ### 🏆 All-Time Records & the Hall of Shame
 The **Records & Stats** window brings it all together:
 
@@ -99,7 +111,7 @@ Set the CPU alert threshold, when to suggest a restart (days running and GB used
 
 ## Privacy
 
-Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
+Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. SidePulse lights are driven by writing a file to the device. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
 
 ## Install
 
@@ -179,6 +191,10 @@ xcodebuild test -project Cracked.xcodeproj -scheme Cracked
 - [ ] Opt-in auto-kill for repeat offenders
 - [ ] Signed and notarized release builds
 - [ ] App Store release
+
+## Credits
+
+The SidePulse animations, device detection and `LEDS.LED` format come from SidePulse's open-source tools ([inteliwear/sidepulse](https://github.com/inteliwear/sidepulse), MIT). See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ---
 
