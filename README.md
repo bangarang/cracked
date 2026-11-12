@@ -15,6 +15,7 @@
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
   <img alt="SwiftUI" src="https://img.shields.io/badge/UI-SwiftUI-0A84FF">
   <img alt="Local-first" src="https://img.shields.io/badge/data-100%25%20local-30D158">
+  <a href="https://github.com/bangarang/cracked/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/bangarang/cracked?label=download&color=111"></a>
 </p>
 
 ---
@@ -98,11 +99,30 @@ Set the CPU alert threshold, when to suggest a restart (days running and GB used
 
 ## Privacy
 
-Cracked is **100% local**. No accounts, no analytics, no network calls. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
+Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
 
 ## Install
 
-Cracked isn't on the App Store yet, so build it from source. It takes about a minute.
+### Download
+
+**[⬇︎ Download Cracked for Mac](https://github.com/bangarang/cracked/releases/latest/download/Cracked.dmg)** (Apple Silicon, macOS 14 Sonoma or later)
+
+1. Open the DMG and drag **Cracked** into **Applications**.
+2. Open Cracked from Applications. macOS will say *"Apple could not verify Cracked is free of malware"*, because this build isn't notarized by Apple yet. Click **Done**.
+3. Open **System Settings → Privacy & Security**, scroll down to *"Cracked was blocked"* and click **Open Anyway**, then confirm.
+
+You only do this once. Look for the gauge in your menu bar: Cracked runs as a menu bar–only app, so it has no Dock icon.
+
+<details>
+<summary>Prefer the terminal?</summary>
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Cracked.app
+open /Applications/Cracked.app
+```
+</details>
+
+### Build from source
 
 **Requirements:** macOS 14 Sonoma or later, Xcode 26+, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
@@ -119,10 +139,10 @@ cp -R build/Build/Products/Release/Cracked.app /Applications/
 open /Applications/Cracked.app
 ```
 
-Look for the gauge in your menu bar. Cracked runs as a menu bar–only app, so it has no Dock icon.
-
 > **Tip:** if `xcodebuild` complains about Command Line Tools, point it at Xcode with
 > `sudo xcode-select -s /Applications/Xcode.app`.
+
+No Xcode? `scripts/build-dmg.sh` builds the app and a DMG with just the Command Line Tools. Set `SIGN_IDENTITY` and `NOTARY_PROFILE` to sign and notarize it.
 
 ## Under the hood
 
