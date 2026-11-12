@@ -116,7 +116,7 @@ struct SystemReport: Encodable, Sendable {
             cpuThreshold: settings.cpuThreshold,
             ignoredBundlePaths: ignoredBundlePaths
         )
-        let tracked = MenuBarViewModel.computeTrackedApps(from: snapshot.processes)
+        let tracked = MenuBarViewModel.computeTrackedApps(from: snapshot.processes, agents: agents)
 
         return SystemReport(
             timestamp: snapshot.timestamp,

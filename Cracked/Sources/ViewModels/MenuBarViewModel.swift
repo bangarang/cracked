@@ -134,9 +134,9 @@ final class MenuBarViewModel: ObservableObject {
             ignoredBundlePaths: IgnoredApps.load().activeBundlePaths()
         )
 
-        // Tracked app counts (computed from full process list)
-        trackedApps = Self.computeTrackedApps(from: snapshot.processes)
+        // Tracked app counts (from the full process list, and the agents found)
         refreshAgents()
+        trackedApps = Self.computeTrackedApps(from: snapshot.processes, agents: agentSessions)
 
         memoryPressure = .current()
         pollOllamaIfDue(running: Ollama.isRunning(processes: snapshot.processes))
@@ -183,6 +183,7 @@ final class MenuBarViewModel: ObservableObject {
 
     nonisolated static func computeTrackedApps(
         from processes: [ProcessSnapshot],
+        agents: [AgentSession] = [],
         arguments: (Int32) -> [String]? = { ProcessTree.arguments(of: $0) }
     ) -> [TrackedAppCount] {
         var results: [TrackedAppCount] = []
@@ -227,14 +228,24 @@ final class MenuBarViewModel: ObservableObject {
             results.append(TrackedAppCount(name: "Claude Code", count: claudeCount, label: "sessions", appBundlePath: "/Applications/Claude.app"))
         }
 
-        // OpenCode sessions outside Paseo: `opencode` terminal UIs, not its servers
-        let openCodeCount = processes.count { p in
+        // OpenCode sessions outside Paseo: the ones listed under Agents (open in a terminal
+        // or an app, or working), which covers sessions run by a server with no terminal of
+        // their own. At least the `opencode` terminal UIs running (not its servers).
+        let openCodeTerminals = processes.count { p in
             let n = p.name
             guard (n == "opencode" || n.hasSuffix("/opencode")), !paseoDaemonPIDs.contains(p.ppid) else { return false }
             return arguments(p.pid).map(OpenCodeAgents.isSessionProcess(arguments:)) ?? true
         }
+        let openCodeAgents = agents.count { $0.provider == AgentProcess.Kind.opencode.rawValue && $0.source != .paseo }
+        let openCodeCount = max(openCodeTerminals, openCodeAgents)
         if openCodeCount > 0 {
             results.append(TrackedAppCount(name: "OpenCode", count: openCodeCount, label: "sessions", appBundlePath: "/Applications/OpenCode.app"))
+        }
+
+        // T3 Code: agents (Claude Code, OpenCode…) running in it, like Paseo's
+        let t3Agents = agents.filter { $0.source != .paseo && $0.terminalName?.hasPrefix("T3 Code") == true }
+        if let first = t3Agents.first {
+            results.append(TrackedAppCount(name: "T3 Code", count: t3Agents.count, label: "agents", appBundlePath: first.terminalBundlePath))
         }
 
         // Warp tabs: count login shell processes whose parent is a Warp process
