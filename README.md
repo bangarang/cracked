@@ -111,7 +111,7 @@ Set the CPU alert threshold, when to suggest a restart (days running and GB used
 
 ## Privacy
 
-Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. SidePulse lights are driven by writing a file to the device. Checking for SidePulse firmware, which only happens when you click **Check for firmware updates**, downloads release information from SidePulse's GitHub repository. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
+Cracked is **100% local**. No accounts and no analytics. It talks to Ollama's API on your own machine, only while Ollama is running, and goes online only when you click **Check for firmware updates** for a SidePulse, to read SidePulse's releases on GitHub. SidePulse lights are driven by writing a file to the device. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
 
 ## Install
 
