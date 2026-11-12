@@ -182,6 +182,15 @@ struct PaseoAgentsTests {
         #expect(tracked["OpenCode"]?.count == 2, "No terminal UIs, but two sessions running")
     }
 
+    @Test("Tracked counts read singular for one")
+    func plural() {
+        typealias T = MenuBarViewModel.TrackedAppCount
+        #expect(T.countText(1, "sessions") == "1 session")
+        #expect(T.countText(3, "sessions") == "3 sessions")
+        #expect(T.countText(0, "tabs") == "0 tabs")
+        #expect(T.countText(1, "agents") == "1 agent")
+    }
+
     @Test("PASEO_HOME overrides ~/.paseo")
     func home() {
         #expect(PaseoAgents.home(environment: ["PASEO_HOME": "/tmp/p"]).path == "/tmp/p")

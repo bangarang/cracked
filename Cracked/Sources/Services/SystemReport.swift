@@ -217,7 +217,7 @@ struct SystemReport: Encodable, Sendable {
             lines.append("Local models: " + models)
         }
         if !trackedApps.isEmpty {
-            lines.append("Tracked: " + trackedApps.map { "\($0.name) \($0.count) \($0.label)" }.joined(separator: ", "))
+            lines.append("Tracked: " + trackedApps.map { "\($0.name) " + MenuBarViewModel.TrackedAppCount.countText($0.count, $0.label) }.joined(separator: ", "))
         }
         if !agents.isEmpty {
             lines.append("Agents:")

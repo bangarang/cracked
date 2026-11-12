@@ -27,6 +27,20 @@ final class MenuBarViewModel: ObservableObject {
         let count: Int
         let label: String
         let appBundlePath: String?
+
+        /// "1 session", "3 sessions".
+        var countText: String { Self.countText(count, label) }
+
+        /// The label ("tabs", "sessions"…) is plural; one of anything reads singular.
+        /// Records are still keyed by the plural label.
+        nonisolated static func countText(_ count: Int, _ label: String) -> String {
+            "\(count) \(unit(count, label))"
+        }
+
+        /// "session" for one, "sessions" otherwise.
+        nonisolated static func unit(_ count: Int, _ label: String) -> String {
+            count == 1 && label.hasSuffix("s") ? String(label.dropLast()) : label
+        }
     }
 
     let monitor = ProcessMonitor()

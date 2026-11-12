@@ -150,7 +150,7 @@ struct StatsView: View {
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                                     Text("\(app.count)")
                                         .font(.title2.bold().monospacedDigit())
-                                    Text(app.label)
+                                    Text(MenuBarViewModel.TrackedAppCount.unit(app.count, app.label))
                                         .font(.caption2)
                                         .foregroundStyle(.tertiary)
                                 }
@@ -166,7 +166,7 @@ struct StatsView: View {
                                     .background(.orange)
                                     .foregroundStyle(.white)
                                     .clipShape(Capsule())
-                                Text("\(Int(pr.value)) \(app.label)")
+                                Text(MenuBarViewModel.TrackedAppCount.countText(Int(pr.value), app.label))
                                     .font(.caption.bold().monospacedDigit())
                                 Spacer()
                                 Text(Date(timeIntervalSince1970: pr.achievedAt), style: .date)
@@ -229,7 +229,7 @@ struct StatsView: View {
                                     .background(.orange)
                                     .foregroundStyle(.white)
                                     .clipShape(Capsule())
-                                Text("\(trend.peak) \(trend.label)")
+                                Text(MenuBarViewModel.TrackedAppCount.countText(trend.peak, trend.label))
                                     .font(.subheadline.bold().monospacedDigit())
                             }
                             if let date = trend.peakDate {

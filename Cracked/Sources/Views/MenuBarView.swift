@@ -99,7 +99,7 @@ struct MenuBarView: View {
                         Text(app.name)
                             .font(.system(.body))
                         Spacer()
-                        Text("\(app.count) \(app.label)")
+                        Text(app.countText)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
