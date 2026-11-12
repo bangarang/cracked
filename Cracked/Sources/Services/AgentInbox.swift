@@ -2,8 +2,18 @@ import Foundation
 import AppKit
 import Darwin
 
-/// One Claude Code session, as reported by Claude Code hooks.
+/// One coding agent: a Claude Code session reported by hooks, a Paseo agent read
+/// from the Paseo daemon's state (see `PaseoAgents`), or a Claude Code / OpenCode
+/// process found running in a terminal (see `TerminalAgents`).
 struct AgentSession: Codable, Identifiable, Equatable, Sendable {
+    enum Source: String, Codable, Sendable {
+        /// Reported by Cracked's Claude Code hooks.
+        case claudeCode
+        case paseo
+        /// Found by scanning running processes.
+        case terminal
+    }
+
     enum Status: String, Codable, Sendable {
         /// Session open, nothing asked yet.
         case ready
@@ -13,6 +23,10 @@ struct AgentSession: Codable, Identifiable, Equatable, Sendable {
         case needsInput
         /// Finished its turn; your move.
         case done
+        /// The agent hit an error (Paseo only).
+        case error
+        /// Running, but it doesn't report what it's doing (OpenCode in a terminal).
+        case running
     }
 
     let sessionID: String
@@ -27,12 +41,44 @@ struct AgentSession: Codable, Identifiable, Equatable, Sendable {
     var terminalPID: Int32?
     var terminalBundlePath: String?
     var transcriptPath: String?
+    // Paseo agents only. All optional so hook files written before Paseo support still decode.
+    var paseoAgentID: String?
+    var paseoServerID: String?
+    /// The agent's title in Paseo (usually the start of its first prompt).
+    var title: String?
+    /// The provider running the agent, e.g. "claude" or "opencode".
+    var provider: String?
+    /// Set for agents found by scanning processes.
+    var scanned: Bool?
+    /// The agent's terminal, e.g. "/dev/ttys003", used to focus the exact tab.
+    var tty: String?
 
     var id: String { sessionID }
 
+    var source: Source {
+        if paseoAgentID != nil { return .paseo }
+        return scanned == true ? .terminal : .claudeCode
+    }
+
     var projectName: String {
         let name = (cwd as NSString).lastPathComponent
-        return name.isEmpty ? "Claude Code" : name
+        return name.isEmpty ? (source == .paseo ? "Paseo" : "Claude Code") : name
+    }
+
+    /// "Claude", "OpenCode"… for notifications ("Claude is done").
+    var agentName: String {
+        switch provider {
+        case nil, "claude": "Claude"
+        case "opencode": "OpenCode"
+        case "codex": "Codex"
+        case let other?: other.prefix(1).uppercased() + other.dropFirst()
+        }
+    }
+
+    /// Opens this agent in the Paseo app.
+    var paseoURL: URL? {
+        guard let agent = paseoAgentID, let server = paseoServerID else { return nil }
+        return PaseoAgents.deepLink(serverID: server, agentID: agent)
     }
 
     var terminalName: String? {
@@ -40,7 +86,7 @@ struct AgentSession: Codable, Identifiable, Equatable, Sendable {
     }
 
     /// Whether this session is waiting on the user.
-    var isWaiting: Bool { status == .needsInput || status == .done }
+    var isWaiting: Bool { status == .needsInput || status == .done || status == .error }
 
     /// Permission prompts produce a Notification hook but nothing when they are answered.
     /// If the transcript has been written since, the session is evidently working again.

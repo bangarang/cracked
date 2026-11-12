@@ -31,9 +31,12 @@ struct CrackedSettings: Sendable {
 enum PressureLevel: String, Codable, Sendable {
     case normal, warning, critical
 
-    static func from(cpuHogs: [ProcessSnapshot], loadAverage: Double) -> PressureLevel {
-        if cpuHogs.contains(where: { $0.cpuPercent >= 100 }) || loadAverage > 20 { return .critical }
-        if !cpuHogs.isEmpty || loadAverage > 8 { return .warning }
+    static func from(cpuHogs: [ProcessSnapshot], loadAverage: Double,
+                     memoryPressure: MemoryPressure = .normal) -> PressureLevel {
+        if cpuHogs.contains(where: { $0.cpuPercent >= 100 }) || loadAverage > 20 || memoryPressure == .critical {
+            return .critical
+        }
+        if !cpuHogs.isEmpty || loadAverage > 8 || memoryPressure == .warning { return .warning }
         return .normal
     }
 }
@@ -67,6 +70,10 @@ struct SystemReport: Encodable, Sendable {
 
     struct Agent: Encodable, Sendable {
         let sessionID: String
+        /// "paseo", "terminal" (found running in a terminal) or "claudeCode" (reported by hooks).
+        let source: String
+        let provider: String?
+        let title: String?
         let project: String
         let cwd: String
         let status: String
@@ -86,12 +93,17 @@ struct SystemReport: Encodable, Sendable {
     let worthARestart: [RestartCandidate]
     let trackedApps: [Tracked]
     let agents: [Agent]
+    /// macOS's memory pressure: "normal", "warning" or "critical".
+    let memoryPressure: MemoryPressure
+    /// Models Ollama has loaded; empty when Ollama isn't running.
+    let localModels: [LocalModel]
 
     // MARK: - Building
 
     static func build(snapshot: SystemSnapshot, settings: CrackedSettings,
                       launchedAppPIDs: Set<Int32>, ignoredBundlePaths: Set<String>,
-                      agents: [AgentSession], cpuCores: Int) -> SystemReport {
+                      agents: [AgentSession], cpuCores: Int,
+                      memoryPressure: MemoryPressure = .normal, localModels: [LocalModel] = []) -> SystemReport {
         let userApps = snapshot.processes.filter { $0.isUserApp }
         let hogs = userApps
             .filter { $0.cpuPercent >= settings.cpuThreshold }
@@ -108,7 +120,7 @@ struct SystemReport: Encodable, Sendable {
 
         return SystemReport(
             timestamp: snapshot.timestamp,
-            pressure: .from(cpuHogs: hogs, loadAverage: snapshot.loadAverage),
+            pressure: .from(cpuHogs: hogs, loadAverage: snapshot.loadAverage, memoryPressure: memoryPressure),
             loadAverage: (snapshot.loadAverage * 100).rounded() / 100,
             cpuCores: cpuCores,
             memoryUsedGB: (snapshot.memoryUsedGB * 10).rounded() / 10,
@@ -125,10 +137,12 @@ struct SystemReport: Encodable, Sendable {
             },
             trackedApps: tracked.map { Tracked(name: $0.name, count: $0.count, label: $0.label) },
             agents: agents.map {
-                Agent(sessionID: $0.sessionID, project: $0.projectName, cwd: $0.cwd,
-                      status: $0.effectiveStatus(transcriptModifiedAt: AgentInbox.transcriptModifiedAt($0)).rawValue,
+                Agent(sessionID: $0.sessionID, source: $0.source.rawValue, provider: $0.provider,
+                      title: $0.title, project: $0.projectName, cwd: $0.cwd, status: $0.status.rawValue,
                       message: $0.message, terminal: $0.terminalName, updatedAt: $0.updatedAt)
-            }
+            },
+            memoryPressure: memoryPressure,
+            localModels: localModels
         )
     }
 
@@ -146,8 +160,10 @@ struct SystemReport: Encodable, Sendable {
             settings: .load(),
             launchedAppPIDs: launchedAppPIDs(),
             ignoredBundlePaths: IgnoredApps.load().activeBundlePaths(),
-            agents: AgentInbox.loadAll(),
-            cpuCores: ProcessInfo.processInfo.activeProcessorCount
+            agents: AgentFeed.load(paseo: PaseoAgentReader()),
+            cpuCores: ProcessInfo.processInfo.activeProcessorCount,
+            memoryPressure: .current(),
+            localModels: Ollama.isRunning(processes: processes) ? (Ollama.loadedModelsSync() ?? []) : []
         )
     }
 
@@ -172,6 +188,16 @@ struct SystemReport: Encodable, Sendable {
         memoryTotalGB > 0 ? memoryUsedGB / memoryTotalGB : 0
     }
 
+    var localModelsGB: Double { localModels.reduce(0) { $0 + $1.sizeGB } }
+
+    /// "gemma4:26b 22.3 GB, qwen3-embedding:0.6b 4.4 GB (26.7 GB, 56% of RAM)"
+    var localModelsSummary: String? {
+        guard !localModels.isEmpty else { return nil }
+        let models = localModels.map { String(format: "%@ %.1f GB", $0.name, $0.sizeGB) }.joined(separator: ", ")
+        let share = memoryTotalGB > 0 ? String(format: ", %.0f%% of RAM", localModelsGB / memoryTotalGB * 100) : ""
+        return models + String(format: " (%.1f GB", localModelsGB) + share + ")"
+    }
+
     /// Human-readable summary for `Cracked status`.
     var summary: String {
         var lines: [String] = []
@@ -184,14 +210,22 @@ struct SystemReport: Encodable, Sendable {
         if !worthARestart.isEmpty {
             lines.append("Worth a restart: " + worthARestart.map { "\($0.name) (\($0.memory) · \($0.uptime))" }.joined(separator: ", "))
         }
+        if memoryPressure != .normal {
+            lines.append("Memory pressure: \(memoryPressure.rawValue)")
+        }
+        if let models = localModelsSummary {
+            lines.append("Local models: " + models)
+        }
         if !trackedApps.isEmpty {
             lines.append("Tracked: " + trackedApps.map { "\($0.name) \($0.count) \($0.label)" }.joined(separator: ", "))
         }
         if !agents.isEmpty {
-            lines.append("Claude Code sessions:")
+            lines.append("Agents:")
             for agent in agents {
-                let status = ["ready": "ready", "working": "working", "needsInput": "needs input", "done": "done"][agent.status] ?? agent.status
-                lines.append("  • \(agent.project): \(status)\(agent.message.map { " · \($0)" } ?? "")")
+                let status = ["ready": "idle", "working": "working", "needsInput": "needs input", "done": "done",
+                              "error": "error", "running": "running"][agent.status] ?? agent.status
+                let via = agent.source == "paseo" ? " (Paseo)" : agent.terminal.map { " (\($0))" } ?? ""
+                lines.append("  • \(agent.project)\(via): \(status)\(agent.message.map { " · \($0)" } ?? "")")
             }
         }
         return lines.joined(separator: "\n")
@@ -206,12 +240,19 @@ struct SystemReport: Encodable, Sendable {
         if !cpuHogs.isEmpty {
             parts.append("CPU hogs: " + cpuHogs.prefix(3).map { "\($0.name) \(Int($0.cpuPercent))%" }.joined(separator: ", "))
         }
+        if memoryPressure != .normal {
+            parts.append("memory pressure \(memoryPressure.rawValue)")
+        }
+        if let models = localModelsSummary {
+            parts.append("Ollama models loaded: " + models)
+        }
         let busyAgents = agents.filter { $0.status == "working" }.count
         if busyAgents > 0 {
-            parts.append("\(busyAgents) other Claude Code session\(busyAgents == 1 ? "" : "s") working")
+            parts.append("\(busyAgents) other coding agent\(busyAgents == 1 ? "" : "s") working")
         }
         return "[Cracked system monitor] This Mac is under heavy load: " + parts.joined(separator: " · ")
-            + ". Prefer running builds and test suites one at a time, and avoid starting extra heavy processes."
+            + ". Prefer running builds and test suites one at a time, and avoid starting extra heavy processes"
+            + (localModels.isEmpty ? "." : " or loading more local models.")
     }
 }
 

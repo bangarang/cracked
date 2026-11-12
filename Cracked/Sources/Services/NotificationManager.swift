@@ -70,16 +70,22 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sen
     func sendAgentNotification(_ session: AgentSession) {
         let content = UNMutableNotificationContent()
         content.title = session.projectName
+        let name = session.agentName
+        let via = session.source == .paseo ? "Paseo" : session.terminalName
         switch session.status {
         case .needsInput:
-            content.body = session.message ?? "Claude needs your input"
+            content.body = session.message ?? "\(name) needs your input"
+        case .error:
+            content.body = "\(name) hit an error" + (session.message.map { ": \($0)" } ?? "")
         default:
-            content.body = "Claude is done" + (session.terminalName.map { " · \($0)" } ?? "")
+            content.body = "\(name) is done" + (via.map { " · \($0)" } ?? "")
         }
+        if let title = session.title { content.subtitle = title }
         content.sound = .default
         content.categoryIdentifier = Self.agentCategoryID
         content.threadIdentifier = session.sessionID
-        if let pid = session.terminalPID { content.userInfo = ["terminalPID": pid] }
+        // Clicking the notification focuses the agent the same way clicking its row does.
+        if let data = try? JSONEncoder().encode(session) { content.userInfo = ["agentSession": data] }
 
         let request = UNNotificationRequest(identifier: "agent-\(session.sessionID)", content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
@@ -99,8 +105,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sen
         didReceive response: UNNotificationResponse
     ) async {
         let userInfo = response.notification.request.content.userInfo
-        if let terminalPID = userInfo["terminalPID"] as? Int32 {
-            AppActions.activate(pid: terminalPID)
+        if let data = userInfo["agentSession"] as? Data,
+           let session = try? JSONDecoder().decode(AgentSession.self, from: data) {
+            await AgentNavigator.focus(session)
             return
         }
         guard let pid = userInfo["pid"] as? Int32 else { return }

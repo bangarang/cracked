@@ -197,6 +197,7 @@ struct StatsView: View {
         "Chrome": .green,
         "Cursor": .cyan,
         "Claude Code": .pink,
+        "Paseo": .mint,
         "Warp": .yellow,
     ]
 
@@ -435,6 +436,7 @@ struct RecordCard: View {
         case "peak_tabs": "Most Tabs"
         case "peak_windows": "Most Windows"
         case "peak_sessions": "Most Sessions"
+        case "peak_agents": "Most Agents"
         default: record.recordType
         }
     }

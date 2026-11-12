@@ -126,6 +126,19 @@ struct SettingsView: View {
                 Text("Lets agents check this Mac before heavy work")
             }
 
+            LabeledContent {
+                if paseoDetected {
+                    Label("Detected", systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.green)
+                } else {
+                    Text("Not found").foregroundStyle(.secondary)
+                }
+            } label: {
+                Text("Paseo")
+                Text("Paseo agents show up under Agents automatically")
+            }
+
             Toggle(isOn: $agentNotifications) {
                 Text("Notify me when an agent is done")
                 Text("Or when it's blocked waiting for you")
@@ -141,12 +154,16 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            Text("Claude Code")
+            Text("Agents")
         } footer: {
-            Text("Changes apply to new Claude Code sessions.")
+            Text("Hook and MCP changes apply to new Claude Code sessions.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var paseoDetected: Bool {
+        FileManager.default.fileExists(atPath: PaseoAgents.home().appendingPathComponent("agents").path)
     }
 
     private func connectedControls(disconnect: @escaping () -> Void) -> some View {

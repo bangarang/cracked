@@ -15,6 +15,11 @@ final class MenuBarViewModel: ObservableObject {
     @Published var agentSessions: [AgentSession] = []
     /// Sessions that finished or got blocked since the menu was last opened.
     @Published var agentsWaitingCount: Int = 0
+    /// Models Ollama has loaded, biggest first.
+    @Published var localModels: [LocalModel] = []
+    /// Models being unloaded, so their button can show progress.
+    @Published var unloadingModels: Set<String> = []
+    @Published var memoryPressure: MemoryPressure = .normal
 
     struct TrackedAppCount: Identifiable {
         let id = UUID()
@@ -34,6 +39,9 @@ final class MenuBarViewModel: ObservableObject {
     private var agentsLastSeenAt = Date()
     private var knownAgentStatuses: [String: AgentSession.Status]?
     private var agentObserver: NSObjectProtocol?
+    private let paseoReader = PaseoAgentReader()
+    private var lastOllamaPoll = Date.distantPast
+    private var ollamaPollInFlight = false
 
     @AppStorage("cpuThreshold") var cpuThreshold: Double = CrackedSettings.defaultCPUThreshold
     @AppStorage("agentNotifications") private var agentNotifications: Bool = false
@@ -129,7 +137,10 @@ final class MenuBarViewModel: ObservableObject {
         trackedApps = Self.computeTrackedApps(from: snapshot.processes)
         refreshAgents()
 
-        switch PressureLevel.from(cpuHogs: cpuHogs, loadAverage: loadAverage) {
+        memoryPressure = .current()
+        pollOllamaIfDue(running: Ollama.isRunning(processes: snapshot.processes))
+
+        switch PressureLevel.from(cpuHogs: cpuHogs, loadAverage: loadAverage, memoryPressure: memoryPressure) {
         case .critical: iconState = .critical
         case .warning: iconState = .warning
         case .normal: iconState = .normal
@@ -192,9 +203,21 @@ final class MenuBarViewModel: ObservableObject {
         }
 
         // Claude Code instances: bare "claude" processes (not Claude.app)
+        // Paseo agents: agent runtimes (claude, opencode…) the Paseo daemon is running
+        let paseoDaemonPIDs = Set(processes.filter { $0.name.hasSuffix("Paseo Daemon") }.map(\.pid))
+        let paseoAgents = processes.count { p in
+            paseoDaemonPIDs.contains(p.ppid) && p.name != "<defunct>"
+                && TerminalAgents.kind(name: (p.name as NSString).lastPathComponent, path: p.name) != nil
+        }
+        if paseoAgents > 0 {
+            results.append(TrackedAppCount(name: "Paseo", count: paseoAgents, label: "agents", appBundlePath: "/Applications/Paseo.app"))
+        }
+
+        // Claude Code sessions outside Paseo: bare "claude" processes (not Claude.app)
         let claudeCount = processes.count { p in
             let n = p.name
             return (n == "claude" || n.hasSuffix("/claude")) && !n.contains("Claude.app")
+                && !paseoDaemonPIDs.contains(p.ppid)
         }
         if claudeCount > 0 {
             results.append(TrackedAppCount(name: "Claude Code", count: claudeCount, label: "sessions", appBundlePath: "/Applications/Claude.app"))
@@ -216,6 +239,38 @@ final class MenuBarViewModel: ObservableObject {
 
     func refreshNow() {
         monitor.pollNow()
+        lastOllamaPoll = .distantPast
+    }
+
+    // MARK: - Local models
+
+    var localModelsGB: Double { localModels.reduce(0) { $0 + $1.sizeGB } }
+
+    /// Asks Ollama what's loaded every 5 seconds, and only while it's running.
+    private func pollOllamaIfDue(running: Bool) {
+        guard running else {
+            if !localModels.isEmpty { localModels = [] }
+            return
+        }
+        guard !ollamaPollInFlight, Date().timeIntervalSince(lastOllamaPoll) >= 5 else { return }
+        ollamaPollInFlight = true
+        lastOllamaPoll = Date()
+        Task {
+            let models = await Ollama.loadedModels()
+            ollamaPollInFlight = false
+            let loaded = models ?? []
+            if loaded != localModels { localModels = loaded }
+        }
+    }
+
+    func unloadModel(_ model: LocalModel) {
+        unloadingModels.insert(model.name)
+        Task {
+            await Ollama.unload(model: model.name)
+            unloadingModels.remove(model.name)
+            lastOllamaPoll = .distantPast
+            if let models = await Ollama.loadedModels() { localModels = models }
+        }
     }
 
     func killProcess(_ process: ProcessSnapshot) {
@@ -234,25 +289,21 @@ final class MenuBarViewModel: ObservableObject {
 
     // MARK: - Agents
 
-    /// Re-reads the agent inbox, applies the transcript heuristic, and notifies
-    /// (if enabled) when a session newly finishes or needs input.
+    /// Re-reads Paseo agents, terminal sessions and hook sessions, and notifies
+    /// (if enabled) when one newly finishes, errors or needs input.
     func refreshAgents() {
-        let sessions = AgentInbox.loadAll().map { session -> AgentSession in
-            var session = session
-            session.status = session.effectiveStatus(transcriptModifiedAt: AgentInbox.transcriptModifiedAt(session))
-            return session
-        }
+        let sessions = AgentFeed.load(paseo: paseoReader)
 
         if let known = knownAgentStatuses, agentNotifications {
             for session in sessions where session.isWaiting && known[session.sessionID] != session.status {
                 notificationManager.sendAgentNotification(session)
             }
         }
-        knownAgentStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionID, $0.status) })
+        knownAgentStatuses = Dictionary(sessions.map { ($0.sessionID, $0.status) }, uniquingKeysWith: { first, _ in first })
 
         if sessions != agentSessions { agentSessions = sessions }
         let waiting = sessions.filter {
-            $0.status == .needsInput || ($0.status == .done && $0.updatedAt > agentsLastSeenAt)
+            $0.status == .needsInput || ($0.isWaiting && $0.updatedAt > agentsLastSeenAt)
         }.count
         if waiting != agentsWaitingCount { agentsWaitingCount = waiting }
     }
@@ -264,9 +315,7 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     func focusAgent(_ session: AgentSession) {
-        if let pid = session.terminalPID {
-            AppActions.activate(pid: pid)
-        }
+        AgentNavigator.focus(session)
     }
 
     func ignoreApp(_ app: StaleApp) {
