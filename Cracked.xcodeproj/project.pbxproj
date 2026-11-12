@@ -13,24 +13,39 @@
 		0F7383517735C41E1AD8ACCC /* DatabaseManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC65F5A4D06CA44EB8B179 /* DatabaseManagerTests.swift */; };
 		26AB3E5F883F68A23CF8B446 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */; };
 		36868D7C3C0F2F7CB3A345DD /* ProcessInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F72B8B87A9097A7CCB7530 /* ProcessInfo.swift */; };
+		38D4687A43167BECF926456D /* SystemReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 271C41C482A0CD06A5A76E0C /* SystemReport.swift */; };
 		47686BFC7EE9443C9677D210 /* StaleApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103C696517D86995C4B49765 /* StaleApps.swift */; };
 		6B2D3B7571A0AC346E8D34AB /* StaleAppRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE8B4469BD432908C6A15A9 /* StaleAppRowView.swift */; };
 		6D13F9EF2FC06660C950E715 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46370B99D9947DFA8BC9D549 /* StatsView.swift */; };
+		7EB5D822CB1A06787CA1CF36 /* DebugSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250B435FBEECDD6FA0FFBD91 /* DebugSnapshots.swift */; };
 		879BDDCCF9135782431BE607 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A066D73100003845DECA1DC /* main.swift */; };
 		8A70665972568B0E1A681373 /* AlertEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC58D76AED71F00F8525E90 /* AlertEngineTests.swift */; };
 		8BBC77CB206AB4A17B1CF992 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF0B6A5A6AE147797086478 /* NotificationManager.swift */; };
 		8DB02045B3B88D2E5767CC0D /* AlertEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4B628B29CC02D0B6694E077 /* AlertEngine.swift */; };
 		8E03F68704C6E1FE8DAB158F /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39AF25AB7D47915CB05C1D31 /* ProcessRowView.swift */; };
 		9407B6584563437082BE80BB /* StatsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F1050A62D13F524D9A39827 /* StatsViewModel.swift */; };
+		A7A181A372882855FFA7F068 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8ECAADF80CD7B0ED6A68CA3 /* MCPServer.swift */; };
 		AB531BEBFC242E6460D628F1 /* RecordTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF28E46701D024BC864382B /* RecordTrackerTests.swift */; };
 		AF48DF03A8437A420876DC46 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C532FA8BA2D92CB2EC08D345 /* DatabaseManager.swift */; };
 		C1B662C54E46046147B07894 /* StaleAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E7C6BA9FC775678BE8A98DD /* StaleAppTests.swift */; };
+		C1D8BA8EAB89087B19153FD8 /* AgentIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F03CA463B1EA421511F87D64 /* AgentIntegrationTests.swift */; };
+		A1C0FFEE0000000000000003 /* PaseoAgentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000004 /* PaseoAgentsTests.swift */; };
+		A1C0FFEE000000000000000D /* LocalModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE000000000000000E /* LocalModelsTests.swift */; };
+		A1C0FFEE0000000000000007 /* TerminalAgentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000008 /* TerminalAgentsTests.swift */; };
 		C51A98D978B769FD376B5911 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9FF0FAD489A18CFD69CD98A /* MenuBarView.swift */; };
 		D7DC10E5F7D50146824E4873 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FD8D0F4EB12AC6A9675805F8 /* Assets.xcassets */; };
 		E1E3E1A8FA691788AE0B9E64 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F6248F118882F38F417DBC /* DatabaseModels.swift */; };
+		E3B0FBC04FF42D51190BE597 /* ClaudeCodeSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AEE186F4063B3129B73D3A /* ClaudeCodeSetup.swift */; };
 		E65E940EB372D21BB1049452 /* RecordTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */; };
+		E8320E18E62BC3888F2F7C97 /* AgentInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB3061BC8D691716398D817 /* AgentInbox.swift */; };
+		A1C0FFEE0000000000000001 /* PaseoAgents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000002 /* PaseoAgents.swift */; };
+		A1C0FFEE0000000000000009 /* LocalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE000000000000000A /* LocalModels.swift */; };
+		A1C0FFEE0000000000000005 /* TerminalAgents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE0000000000000006 /* TerminalAgents.swift */; };
+		F467DA23F275AD80B2050E47 /* AgentRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5665EB893C68949F0B587847 /* AgentRowView.swift */; };
+		A1C0FFEE000000000000000B /* LocalModelRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE000000000000000C /* LocalModelRowView.swift */; };
 		F522356289C547654A031400 /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA6A2660C776C2F4FE16745 /* ProcessMonitor.swift */; };
 		F83226CE6AE0E899C9F111AD /* MenuBarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 067C47280D3F7636CE9F1EE7 /* MenuBarViewModel.swift */; };
+		F9B6749270382386A3E798F9 /* CrackedCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9BE1F5FEC9CDB1CCD755BA7 /* CrackedCLI.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,23 +64,38 @@
 		103C696517D86995C4B49765 /* StaleApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleApps.swift; sourceTree = "<group>"; };
 		1E7C6BA9FC775678BE8A98DD /* StaleAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAppTests.swift; sourceTree = "<group>"; };
 		1EAC65F5A4D06CA44EB8B179 /* DatabaseManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManagerTests.swift; sourceTree = "<group>"; };
+		250B435FBEECDD6FA0FFBD91 /* DebugSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSnapshots.swift; sourceTree = "<group>"; };
+		271C41C482A0CD06A5A76E0C /* SystemReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemReport.swift; sourceTree = "<group>"; };
 		3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitorTests.swift; sourceTree = "<group>"; };
 		39AF25AB7D47915CB05C1D31 /* ProcessRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		3A066D73100003845DECA1DC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		46370B99D9947DFA8BC9D549 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		4755905E2C3A1BD132585CE8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		54AEE186F4063B3129B73D3A /* ClaudeCodeSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeSetup.swift; sourceTree = "<group>"; };
+		5665EB893C68949F0B587847 /* AgentRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRowView.swift; sourceTree = "<group>"; };
+		A1C0FFEE000000000000000C /* LocalModelRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelRowView.swift; sourceTree = "<group>"; };
 		8F1050A62D13F524D9A39827 /* StatsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsViewModel.swift; sourceTree = "<group>"; };
 		9CC58D76AED71F00F8525E90 /* AlertEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEngineTests.swift; sourceTree = "<group>"; };
 		A302E853DC5A19D2B7204050 /* Cracked.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cracked.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordTracker.swift; sourceTree = "<group>"; };
 		BFE8B4469BD432908C6A15A9 /* StaleAppRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAppRowView.swift; sourceTree = "<group>"; };
 		C532FA8BA2D92CB2EC08D345 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
+		C9BE1F5FEC9CDB1CCD755BA7 /* CrackedCLI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrackedCLI.swift; sourceTree = "<group>"; };
 		C9FF0FAD489A18CFD69CD98A /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		CCF28E46701D024BC864382B /* RecordTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordTrackerTests.swift; sourceTree = "<group>"; };
+		CDB3061BC8D691716398D817 /* AgentInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentInbox.swift; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000002 /* PaseoAgents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaseoAgents.swift; sourceTree = "<group>"; };
+		A1C0FFEE000000000000000A /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000006 /* TerminalAgents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAgents.swift; sourceTree = "<group>"; };
 		E1FDA10C334BD5C13C185440 /* CrackedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrackedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E4B628B29CC02D0B6694E077 /* AlertEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEngine.swift; sourceTree = "<group>"; };
 		E6F72B8B87A9097A7CCB7530 /* ProcessInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessInfo.swift; sourceTree = "<group>"; };
+		E8ECAADF80CD7B0ED6A68CA3 /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		EDF0B6A5A6AE147797086478 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		F03CA463B1EA421511F87D64 /* AgentIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntegrationTests.swift; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000004 /* PaseoAgentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaseoAgentsTests.swift; sourceTree = "<group>"; };
+		A1C0FFEE000000000000000E /* LocalModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelsTests.swift; sourceTree = "<group>"; };
+		A1C0FFEE0000000000000008 /* TerminalAgentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAgentsTests.swift; sourceTree = "<group>"; };
 		F8F6248F118882F38F417DBC /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseModels.swift; sourceTree = "<group>"; };
 		FB9B8D24B519FBF2FD900F9C /* CrackedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrackedApp.swift; sourceTree = "<group>"; };
 		FD8D0F4EB12AC6A9675805F8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -86,6 +116,10 @@
 		12C1AF85CD5AA528465B79F9 /* CrackedTests */ = {
 			isa = PBXGroup;
 			children = (
+				F03CA463B1EA421511F87D64 /* AgentIntegrationTests.swift */,
+				A1C0FFEE0000000000000004 /* PaseoAgentsTests.swift */,
+				A1C0FFEE000000000000000E /* LocalModelsTests.swift */,
+				A1C0FFEE0000000000000008 /* TerminalAgentsTests.swift */,
 				9CC58D76AED71F00F8525E90 /* AlertEngineTests.swift */,
 				1EAC65F5A4D06CA44EB8B179 /* DatabaseManagerTests.swift */,
 				3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */,
@@ -99,6 +133,8 @@
 			isa = PBXGroup;
 			children = (
 				FB9B8D24B519FBF2FD900F9C /* CrackedApp.swift */,
+				C9BE1F5FEC9CDB1CCD755BA7 /* CrackedCLI.swift */,
+				250B435FBEECDD6FA0FFBD91 /* DebugSnapshots.swift */,
 				3A066D73100003845DECA1DC /* main.swift */,
 			);
 			path = App;
@@ -167,6 +203,8 @@
 		D156E84B1A5C5C63543731EF /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				5665EB893C68949F0B587847 /* AgentRowView.swift */,
+				A1C0FFEE000000000000000C /* LocalModelRowView.swift */,
 				C9FF0FAD489A18CFD69CD98A /* MenuBarView.swift */,
 				39AF25AB7D47915CB05C1D31 /* ProcessRowView.swift */,
 				4755905E2C3A1BD132585CE8 /* SettingsView.swift */,
@@ -179,11 +217,18 @@
 		FA18677752CAF998ABE2C9C4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				CDB3061BC8D691716398D817 /* AgentInbox.swift */,
+				A1C0FFEE0000000000000002 /* PaseoAgents.swift */,
+				A1C0FFEE000000000000000A /* LocalModels.swift */,
+				A1C0FFEE0000000000000006 /* TerminalAgents.swift */,
 				E4B628B29CC02D0B6694E077 /* AlertEngine.swift */,
+				54AEE186F4063B3129B73D3A /* ClaudeCodeSetup.swift */,
 				C532FA8BA2D92CB2EC08D345 /* DatabaseManager.swift */,
+				E8ECAADF80CD7B0ED6A68CA3 /* MCPServer.swift */,
 				EDF0B6A5A6AE147797086478 /* NotificationManager.swift */,
 				0BA6A2660C776C2F4FE16745 /* ProcessMonitor.swift */,
 				B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */,
+				271C41C482A0CD06A5A76E0C /* SystemReport.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -279,10 +324,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E8320E18E62BC3888F2F7C97 /* AgentInbox.swift in Sources */,
+				A1C0FFEE0000000000000001 /* PaseoAgents.swift in Sources */,
+				A1C0FFEE0000000000000009 /* LocalModels.swift in Sources */,
+				A1C0FFEE0000000000000005 /* TerminalAgents.swift in Sources */,
+				F467DA23F275AD80B2050E47 /* AgentRowView.swift in Sources */,
+				A1C0FFEE000000000000000B /* LocalModelRowView.swift in Sources */,
 				8DB02045B3B88D2E5767CC0D /* AlertEngine.swift in Sources */,
+				E3B0FBC04FF42D51190BE597 /* ClaudeCodeSetup.swift in Sources */,
 				0A3C403131F25F1903D7FDD3 /* CrackedApp.swift in Sources */,
+				F9B6749270382386A3E798F9 /* CrackedCLI.swift in Sources */,
 				AF48DF03A8437A420876DC46 /* DatabaseManager.swift in Sources */,
 				E1E3E1A8FA691788AE0B9E64 /* DatabaseModels.swift in Sources */,
+				7EB5D822CB1A06787CA1CF36 /* DebugSnapshots.swift in Sources */,
+				A7A181A372882855FFA7F068 /* MCPServer.swift in Sources */,
 				C51A98D978B769FD376B5911 /* MenuBarView.swift in Sources */,
 				F83226CE6AE0E899C9F111AD /* MenuBarViewModel.swift in Sources */,
 				8BBC77CB206AB4A17B1CF992 /* NotificationManager.swift in Sources */,
@@ -295,6 +350,7 @@
 				47686BFC7EE9443C9677D210 /* StaleApps.swift in Sources */,
 				6D13F9EF2FC06660C950E715 /* StatsView.swift in Sources */,
 				9407B6584563437082BE80BB /* StatsViewModel.swift in Sources */,
+				38D4687A43167BECF926456D /* SystemReport.swift in Sources */,
 				879BDDCCF9135782431BE607 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -303,6 +359,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C1D8BA8EAB89087B19153FD8 /* AgentIntegrationTests.swift in Sources */,
+				A1C0FFEE0000000000000003 /* PaseoAgentsTests.swift in Sources */,
+				A1C0FFEE000000000000000D /* LocalModelsTests.swift in Sources */,
+				A1C0FFEE0000000000000007 /* TerminalAgentsTests.swift in Sources */,
 				8A70665972568B0E1A681373 /* AlertEngineTests.swift in Sources */,
 				0F7383517735C41E1AD8ACCC /* DatabaseManagerTests.swift in Sources */,
 				26AB3E5F883F68A23CF8B446 /* ProcessMonitorTests.swift in Sources */,

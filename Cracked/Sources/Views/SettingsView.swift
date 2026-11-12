@@ -3,13 +3,19 @@ import ServiceManagement
 import AppKit
 
 struct SettingsView: View {
-    @AppStorage("cpuThreshold") private var cpuThreshold: Double = 80.0
+    @AppStorage("cpuThreshold") private var cpuThreshold: Double = CrackedSettings.defaultCPUThreshold
     @AppStorage("stalenessThresholdDays") private var stalenessThresholdDays: Int = 7
     @AppStorage("restartMemoryThresholdGB") private var restartMemoryThresholdGB: Double = 2.0
     @AppStorage("pollIntervalSeconds") private var pollInterval: Double = 5.0
     @AppStorage("cooldownMinutes") private var cooldownMinutes: Int = 15
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage(IgnoredApps.defaultsKey) private var ignoredAppsData: Data = Data()
+    @AppStorage("agentNotifications") private var agentNotifications: Bool = false
+
+    @State private var hooksInstalled = ClaudeCodeSetup.areHooksInstalled
+    @State private var mcpInstalled = ClaudeCodeSetup.isMCPInstalled
+    @State private var mcpBusy = false
+    @State private var setupError: String?
 
     private var ignoredApps: IgnoredApps { IgnoredApps(data: ignoredAppsData) }
 
@@ -38,6 +44,8 @@ struct SettingsView: View {
                 Text("Snoozed & Ignored Apps")
             }
 
+            claudeCodeSection
+
             Section {
                 numberField("Check every", value: $pollInterval, unit: "seconds")
                 numberField("Alert cooldown", value: $cooldownMinutes, unit: "minutes")
@@ -55,7 +63,11 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 640)
+        .frame(width: 460, height: 720)
+        .onAppear {
+            hooksInstalled = ClaudeCodeSetup.areHooksInstalled
+            mcpInstalled = ClaudeCodeSetup.isMCPInstalled
+        }
     }
 
     // MARK: - Rows
@@ -83,6 +95,113 @@ struct SettingsView: View {
             Text(unit)
                 .foregroundStyle(.secondary)
                 .frame(width: 58, alignment: .leading)
+        }
+    }
+
+    private var claudeCodeSection: some View {
+        Section {
+            LabeledContent {
+                if hooksInstalled {
+                    connectedControls { perform { try ClaudeCodeSetup.uninstallHooks() } }
+                } else {
+                    Button("Connect") { perform { try ClaudeCodeSetup.installHooks() } }
+                        .controlSize(.small)
+                }
+            } label: {
+                Text("Agent inbox")
+                Text("Shows each session's status under Agents")
+            }
+
+            LabeledContent {
+                if mcpBusy {
+                    ProgressView().controlSize(.small)
+                } else if mcpInstalled {
+                    connectedControls { setMCP(installed: false) }
+                } else {
+                    Button("Connect") { setMCP(installed: true) }
+                        .controlSize(.small)
+                }
+            } label: {
+                Text("MCP server")
+                Text("Lets agents check this Mac before heavy work")
+            }
+
+            LabeledContent {
+                if paseoDetected {
+                    Label("Detected", systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.green)
+                } else {
+                    Text("Not found").foregroundStyle(.secondary)
+                }
+            } label: {
+                Text("Paseo")
+                Text("Paseo agents show up under Agents automatically")
+            }
+
+            Toggle(isOn: $agentNotifications) {
+                Text("Notify me when an agent is done")
+                Text("Or when it's blocked waiting for you")
+            }
+            .onChange(of: agentNotifications) { _, enabled in
+                if enabled { NotificationManager.shared.requestPermission() }
+            }
+
+            if let setupError {
+                Text(setupError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            Text("Agents")
+        } footer: {
+            Text("Hook and MCP changes apply to new Claude Code sessions.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var paseoDetected: Bool {
+        FileManager.default.fileExists(atPath: PaseoAgents.home().appendingPathComponent("agents").path)
+    }
+
+    private func connectedControls(disconnect: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Label("Connected", systemImage: "checkmark.circle.fill")
+                .labelStyle(.titleAndIcon)
+                .foregroundStyle(.green)
+            Button("Disconnect", action: disconnect)
+                .controlSize(.small)
+        }
+    }
+
+    private func perform(_ action: () throws -> Void) {
+        do {
+            try action()
+            setupError = nil
+        } catch {
+            setupError = error.localizedDescription
+        }
+        hooksInstalled = ClaudeCodeSetup.areHooksInstalled
+    }
+
+    /// The claude CLI takes a moment, so run it off the main thread.
+    private func setMCP(installed: Bool) {
+        mcpBusy = true
+        Task.detached {
+            var message: String?
+            do {
+                if installed { try ClaudeCodeSetup.installMCP() } else { try ClaudeCodeSetup.uninstallMCP() }
+            } catch {
+                message = error.localizedDescription
+            }
+            let nowInstalled = ClaudeCodeSetup.isMCPInstalled
+            await MainActor.run {
+                setupError = message
+                mcpInstalled = nowInstalled
+                mcpBusy = false
+            }
         }
     }
 

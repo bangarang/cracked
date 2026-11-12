@@ -33,6 +33,7 @@ targets:
       path: Cracked/Resources/Cracked.entitlements
       properties:
         com.apple.security.app-sandbox: false
+        com.apple.security.automation.apple-events: true
 
   CrackedTests:
     type: bundle.unit-test

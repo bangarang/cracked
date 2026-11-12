@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import AppKit
 
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sendable {
     static let shared = NotificationManager()
@@ -9,6 +10,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sen
     private static let cpuCategoryID = "CPU_ALERT"
     private static let staleCategoryID = "STALE_ALERT"
     private static let recordCategoryID = "RECORD_ALERT"
+    private static let agentCategoryID = "AGENT_ALERT"
 
     override init() {
         super.init()
@@ -30,7 +32,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sen
         let staleCategory = UNNotificationCategory(identifier: Self.staleCategoryID, actions: [restartAction], intentIdentifiers: [])
         let recordCategory = UNNotificationCategory(identifier: Self.recordCategoryID, actions: [], intentIdentifiers: [])
 
-        UNUserNotificationCenter.current().setNotificationCategories([cpuCategory, staleCategory, recordCategory])
+        let agentCategory = UNNotificationCategory(identifier: Self.agentCategoryID, actions: [], intentIdentifiers: [])
+
+        UNUserNotificationCenter.current().setNotificationCategories([cpuCategory, staleCategory, recordCategory, agentCategory])
     }
 
     func sendAlert(_ alert: Alert) {
@@ -62,12 +66,50 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sen
         UNUserNotificationCenter.current().add(request)
     }
 
+    /// "my-project: Claude needs your input" / "my-project: Claude is done".
+    func sendAgentNotification(_ session: AgentSession) {
+        let content = UNMutableNotificationContent()
+        content.title = session.projectName
+        let name = session.agentName
+        let via = session.source == .paseo ? "Paseo" : session.terminalName
+        switch session.status {
+        case .needsInput:
+            content.body = session.message ?? "\(name) needs your input"
+        case .error:
+            content.body = "\(name) hit an error" + (session.message.map { ": \($0)" } ?? "")
+        default:
+            content.body = "\(name) is done" + (via.map { " · \($0)" } ?? "")
+        }
+        if let title = session.title { content.subtitle = title }
+        content.sound = .default
+        content.categoryIdentifier = Self.agentCategoryID
+        content.threadIdentifier = session.sessionID
+        // Clicking the notification focuses the agent the same way clicking its row does.
+        if let data = try? JSONEncoder().encode(session) { content.userInfo = ["agentSession": data] }
+
+        let request = UNNotificationRequest(identifier: "agent-\(session.sessionID)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    // Show banners even while Cracked's own window is focused.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
+    }
+
     // Handle notification actions
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
         let userInfo = response.notification.request.content.userInfo
+        if let data = userInfo["agentSession"] as? Data,
+           let session = try? JSONDecoder().decode(AgentSession.self, from: data) {
+            await AgentNavigator.focus(session)
+            return
+        }
         guard let pid = userInfo["pid"] as? Int32 else { return }
 
         switch response.actionIdentifier {
