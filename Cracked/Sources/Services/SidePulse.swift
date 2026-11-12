@@ -251,6 +251,8 @@ enum SidePulse {
 @MainActor
 final class SidePulseLights {
     static let enabledKey = "sidePulseEnabled"
+    /// Firmware installs hold the lights, so nothing else is written to a device meanwhile.
+    static var pausedUntil = Date.distantPast
     static let brightnessKey = "sidePulseBrightness"
 
     private let queue = DispatchQueue(label: "com.bangarang.cracked.sidepulse")
@@ -259,6 +261,11 @@ final class SidePulseLights {
     private nonisolated(unsafe) var lastWritten: [String: String] = [:]
     private nonisolated(unsafe) var lastKeepalive: [String: Date] = [:]
     private var devices: [SidePulseDevice] = []
+    /// Dots with their USB storage off, reachable only over USB. Two LEDs.
+    private var usbDots: [SidePulseUSB.Device] = []
+    /// The USB side of each mounted Dot, for when its drive can't be written
+    /// (e.g. a policy that makes USB drives read-only).
+    private var mountedDotsOnUSB: [String: SidePulseUSB.Device] = [:]
     private var lastScan = Date.distantPast
     private var serviceRunning = false
     private var asleep = false
@@ -289,17 +296,25 @@ final class SidePulseLights {
     func update(sessions: [AgentSession], seenSince: Date, now: Date = Date()) {
         guard !asleep else { return }
         rescanIfDue(now: now)
-        guard enabled, !serviceRunning else { return }
+        guard enabled, !serviceRunning, now >= Self.pausedUntil else { return }
         let state = SidePulse.lightState(for: sessions, seenSince: seenSince, now: now)
         let brightness = brightness
         let targets = devices.map { device in
             (device, SidePulse.applyBrightness(SidePulse.animation(for: state, ledCount: device.ledCount),
                                                brightness: brightness))
         }
+        let usbProgram = SidePulse.applyBrightness(SidePulse.animation(for: state, ledCount: 2), brightness: brightness)
+        let usbDots = usbDots
+        let dotsOnUSB = mountedDotsOnUSB
         queue.async { [self] in
             for (device, program) in targets where lastWritten[device.id] != program {
-                if SidePulse.write(program, to: device.programURL) { lastWritten[device.id] = program }
+                if SidePulse.write(program, to: device.programURL) {
+                    lastWritten[device.id] = program
+                } else if let dot = dotsOnUSB[device.id], SidePulseUSB.write(program, to: dot) != .failed {
+                    lastWritten[device.id] = program
+                }
             }
+            for dot in usbDots { sendOverUSB(usbProgram, to: dot) }
             keepAlive(targets.map(\.0), now: now)
         }
     }
@@ -310,6 +325,15 @@ final class SidePulseLights {
         lastScan = now
         serviceRunning = SidePulse.isServiceRunning()
         devices = SidePulse.discover()
+        usbDots = SidePulseUSB.unmountedDots(mounted: devices)
+        mountedDotsOnUSB = [:]
+        if !SidePulseUSB.devices().isEmpty {
+            for dot in devices where dot.model == .dot {
+                if let id = SidePulseUSB.usbDeviceID(forVolume: dot.root) {
+                    mountedDotsOnUSB[dot.id] = SidePulseUSB.Device(registryID: id)
+                }
+            }
+        }
         // Remember each Pro's volume, so the eject guard knows it even once macOS has unmounted it.
         for device in devices where device.model == .pro {
             if let uuid = try? device.root.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString {
@@ -317,11 +341,21 @@ final class SidePulseLights {
             }
         }
         ejectGuard.update()
-        let live = Set(devices.map(\.id))
+        let live = Set(devices.map(\.id) + usbDots.map(Self.key))
         queue.async { [self] in
             lastWritten = lastWritten.filter { live.contains($0.key) }
             lastKeepalive = lastKeepalive.filter { live.contains($0.key) }
         }
+    }
+
+    private nonisolated static func key(_ dot: SidePulseUSB.Device) -> String { "usb:\(dot.registryID)" }
+
+    /// Sends a program to a Dot over USB unless it's already showing it. A send that
+    /// wasn't confirmed counts as sent: it's never replayed automatically.
+    private nonisolated func sendOverUSB(_ program: String, to dot: SidePulseUSB.Device) {
+        let key = Self.key(dot)
+        guard lastWritten[key] != program else { return }
+        if SidePulseUSB.write(program, to: dot) != .failed { lastWritten[key] = program }
     }
 
     /// A real read of `STATUS.TXT` now and then keeps the Pro's SD reader from powering it off.
@@ -338,10 +372,12 @@ final class SidePulseLights {
         asleep = true
         guard enabled, !serviceRunning else { return }
         let targets = devices.map { ($0, SidePulse.sleepAnimation(ledCount: $0.ledCount)) }
+        let usbDots = usbDots
         queue.sync { [self] in
             for (device, program) in targets where SidePulse.write(program, to: device.programURL) {
                 lastWritten[device.id] = program
             }
+            for dot in usbDots { sendOverUSB(SidePulse.sleepAnimation(ledCount: 2), to: dot) }
         }
     }
 

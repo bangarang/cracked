@@ -96,7 +96,7 @@ Got a [SidePulse](https://sidepulse.io) Pro (SD card) or Dot (USB-C)? Cracked li
 | Solid cyan | An agent finished, until you open Cracked's menu (or 20 minutes pass) |
 | Dim pulse | Nothing going on |
 
-Cracked writes the device's `LEDS.LED` only when the state changes, fades the lights out when your Mac sleeps, and keeps the Pro's SD card awake. It also keeps the Pro mounted when macOS would eject it: an SD card that reappears while the Mac is locked (after a hibernate wake, say) gets ejected by macOS, and Cracked refuses that eject and remounts the card once you unlock. Only SidePulse cards are kept, and you can switch this off to eject the Pro from Finder. Turn the lights off or set the brightness in **Settings → SidePulse**. A Dot needs its USB storage on, so it mounts as a drive. While SidePulse's own background service is running, Cracked leaves the lights to it.
+Cracked writes the device's `LEDS.LED` only when the state changes, fades the lights out when your Mac sleeps, and keeps the Pro's SD card awake. It also keeps the Pro mounted when macOS would eject it: an SD card that reappears while the Mac is locked (after a hibernate wake, say) gets ejected by macOS, and Cracked refuses that eject and remounts the card once you unlock. Only SidePulse cards are kept, and you can switch this off to eject the Pro from Finder. A Dot is driven through its drive, or over USB when the drive can't be written (USB storage off, or a policy that makes USB drives read-only). **Settings → SidePulse** also checks for firmware updates, verifies the package's checksums, and installs it by copying `FIRMWARE.BIN` to the device, the way SidePulse does. Turn the lights off or set the brightness there too. A Dot needs its USB storage on, so it mounts as a drive. While SidePulse's own background service is running, Cracked leaves the lights to it.
 
 ### 🏆 All-Time Records & the Hall of Shame
 The **Records & Stats** window brings it all together:
@@ -111,7 +111,7 @@ Set the CPU alert threshold, when to suggest a restart (days running and GB used
 
 ## Privacy
 
-Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. SidePulse lights are driven by writing a file to the device. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
+Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. SidePulse lights are driven by writing a file to the device. Checking for SidePulse firmware, which only happens when you click **Check for firmware updates**, downloads release information from SidePulse's GitHub repository. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
 
 ## Install
 

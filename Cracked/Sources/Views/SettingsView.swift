@@ -20,6 +20,14 @@ struct SettingsView: View {
     @State private var mcpBusy = false
     @State private var setupError: String?
     @State private var sidePulseDevices: [SidePulseDevice] = []
+    @State private var sidePulseUSBDots: [SidePulseUSB.Device] = []
+    /// Mounted Dots whose firmware supports switching USB storage, with their USB side.
+    @State private var sidePulseStorageDots: [String: SidePulseUSB.Device] = [:]
+    @State private var firmwareReleases: [SidePulseDevice.Model: SidePulseFirmware.Release]?
+    @State private var firmwareChecking = false
+    @State private var firmwareBusy: String?
+    @State private var firmwareMessage: String?
+    @State private var firmwareToInstall: (device: SidePulseDevice, release: SidePulseFirmware.Release)?
     @State private var sidePulseServiceRunning = false
 
     private var ignoredApps: IgnoredApps { IgnoredApps(data: ignoredAppsData) }
@@ -74,6 +82,7 @@ struct SettingsView: View {
             hooksInstalled = ClaudeCodeSetup.areHooksInstalled
             mcpInstalled = ClaudeCodeSetup.isMCPInstalled
             sidePulseDevices = SidePulse.discover()
+            refreshSidePulseUSB()
             sidePulseServiceRunning = SidePulse.isServiceRunning()
         }
     }
@@ -100,16 +109,37 @@ struct SettingsView: View {
                 Text("Stops macOS ejecting the SD card when the Mac is locked or wakes from hibernation. While on, the Pro can't be ejected from Finder; just pull it out.")
             }
 
-            if sidePulseDevices.isEmpty {
-                Text("No SidePulse connected. A Dot needs its USB storage turned on.")
+            if sidePulseDevices.isEmpty && sidePulseUSBDots.isEmpty {
+                Text("No SidePulse connected.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(sidePulseDevices) { device in
-                    LabeledContent(device.model.rawValue) {
-                        Text([device.serial, device.version.map { "v\($0)" }].compactMap { $0 }.joined(separator: " · "))
+                    sidePulseRow(device)
+                }
+                ForEach(sidePulseUSBDots, id: \.registryID) { dot in
+                    LabeledContent {
+                        Button("Turn storage on") { setStorage(true, dot: dot, eject: nil) }
+                            .controlSize(.small)
+                            .disabled(firmwareBusy != nil)
+                    } label: {
+                        Text("SidePulse Dot")
+                        Text("Over USB, storage off. Firmware updates need storage on.")
+                    }
+                }
+                HStack {
+                    Button(firmwareChecking ? "Checking…" : "Check for firmware updates") { checkFirmware() }
+                        .disabled(firmwareChecking || firmwareBusy != nil)
+                    if firmwareReleases != nil, !firmwareChecking, firmwareMessage == nil {
+                        Text(sidePulseDevices.contains { update(for: $0) != nil } ? "Updates available" : "Up to date")
                             .foregroundStyle(.secondary)
                     }
+                }
+                if let firmwareMessage {
+                    Text(firmwareMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -121,6 +151,114 @@ struct SettingsView: View {
             }
         } header: {
             Text("SidePulse")
+        } footer: {
+            Text("Checking for firmware downloads release information from SidePulse's GitHub repository.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .alert("Update firmware?", isPresented: Binding(get: { firmwareToInstall != nil },
+                                                        set: { if !$0 { firmwareToInstall = nil } }),
+               presenting: firmwareToInstall) { pending in
+            Button("Update") { install(pending.release, on: pending.device) }
+            Button("Cancel", role: .cancel) {}
+        } message: { pending in
+            Text("\(pending.device.model.rawValue) \(pending.device.serial) will get firmware \(pending.release.version). Keep it connected while it updates and restarts.")
+        }
+    }
+
+    private func sidePulseRow(_ device: SidePulseDevice) -> some View {
+        LabeledContent {
+            HStack(spacing: 8) {
+                if firmwareBusy == device.id {
+                    ProgressView().controlSize(.small)
+                } else if let release = update(for: device) {
+                    Button("Update to \(release.version)") { firmwareToInstall = (device, release) }
+                        .controlSize(.small)
+                        .disabled(firmwareBusy != nil)
+                }
+                if let dot = sidePulseStorageDots[device.id] {
+                    Button("Turn storage off") { setStorage(false, dot: dot, eject: device.root) }
+                        .controlSize(.small)
+                        .disabled(firmwareBusy != nil)
+                }
+            }
+        } label: {
+            Text(device.model.rawValue)
+            Text([device.serial, device.version.map { "firmware \($0)" }].compactMap { $0 }.joined(separator: " · "))
+        }
+    }
+
+    /// A newer release for this device, once checked.
+    private func update(for device: SidePulseDevice) -> SidePulseFirmware.Release? {
+        guard let release = firmwareReleases?[device.model],
+              let installed = device.version.flatMap(SidePulseFirmware.Version.init),
+              release.version > installed else { return nil }
+        return release
+    }
+
+    private func refreshSidePulseUSB() {
+        sidePulseUSBDots = SidePulseUSB.unmountedDots(mounted: sidePulseDevices)
+        var storage: [String: SidePulseUSB.Device] = [:]
+        for device in sidePulseDevices where device.model == .dot {
+            // Only firmware that reports its storage setting can switch it.
+            if let id = SidePulseUSB.usbDeviceID(forVolume: device.root),
+               SidePulseUSB.storageStatus(SidePulseUSB.Device(registryID: id)) != nil {
+                storage[device.id] = SidePulseUSB.Device(registryID: id)
+            }
+        }
+        sidePulseStorageDots = storage
+    }
+
+    private func checkFirmware() {
+        firmwareChecking = true
+        firmwareMessage = nil
+        Task {
+            do {
+                firmwareReleases = try await SidePulseFirmware.latest()
+            } catch {
+                firmwareMessage = error.localizedDescription
+            }
+            firmwareChecking = false
+        }
+    }
+
+    private func install(_ release: SidePulseFirmware.Release, on device: SidePulseDevice) {
+        firmwareBusy = device.id
+        firmwareMessage = "Downloading and checking firmware \(release.version)…"
+        // Hold the lights so nothing else is written to the device meanwhile.
+        SidePulseLights.pausedUntil = Date().addingTimeInterval(300)
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            do {
+                try await SidePulseFirmware.install(release, on: device)
+                firmwareMessage = "Firmware \(release.version) sent. Leave the \(device.model.rawValue) connected for 10 seconds while it updates and restarts, then unplug it and plug it back in."
+            } catch {
+                firmwareMessage = error.localizedDescription
+            }
+            SidePulseLights.pausedUntil = Date().addingTimeInterval(SidePulseFirmware.applySeconds + 5)
+            firmwareBusy = nil
+        }
+    }
+
+    private func setStorage(_ on: Bool, dot: SidePulseUSB.Device, eject root: URL?) {
+        firmwareBusy = "storage"
+        firmwareMessage = on ? "Turning storage on…" : "Turning storage off…"
+        Task.detached {
+            if let root {
+                let eject = Process()
+                eject.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+                eject.arguments = ["eject", root.path]
+                try? eject.run()
+                eject.waitUntilExit()
+            }
+            let done = SidePulseUSB.setStorage(on, device: dot)
+            try? await Task.sleep(for: .seconds(4))
+            await MainActor.run {
+                firmwareMessage = done ? nil : "The Dot didn't accept the storage change."
+                firmwareBusy = nil
+                sidePulseDevices = SidePulse.discover()
+                refreshSidePulseUSB()
+            }
         }
     }
 
