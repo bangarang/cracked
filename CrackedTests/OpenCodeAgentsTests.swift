@@ -242,6 +242,10 @@ struct OpenCodeSetupTests {
         #expect(source.contains(#"const CRACKED = "/Apps/My \"Cracked\".app/Cracked";"#))
         #expect(source.contains(#"const PENDING_DIR = "/tmp/pending";"#))
         #expect(source.contains(#"id: "cracked""#))
+        for event in ["permission.asked", "permission.replied", "form.created", "form.replied", "form.cancelled",
+                      "session.execution.started"] {
+            #expect(source.contains(#"case "\#(event)""#), "Handles \(event)")
+        }
     }
 
     @Test("XDG_CONFIG_HOME overrides ~/.config")

@@ -152,8 +152,9 @@ enum OpenCodeSetup {
         // Cracked for OpenCode. Installed by Cracked (Settings → OpenCode, or `Cracked setup`);
         // `Cracked uninstall` removes it. Changes here are overwritten when Cracked reinstalls it.
         //
-        // - Tells Cracked when a session is waiting for a permission decision, so it shows up
-        //   under Needs You. OpenCode keeps pending prompts in memory only.
+        // - Tells Cracked when a session is waiting for you (a permission decision, or a
+        //   question the agent asked), so it shows up under Needs You. OpenCode keeps pending
+        //   prompts in memory only.
         // - Tells Cracked which OpenCode server runs each session, so a session run by an app's
         //   own server (e.g. T3 Code) is shown with, and opens, that app.
         // - When this Mac is under heavy load, adds a short warning to each new session's
@@ -187,15 +188,21 @@ enum OpenCodeSetup {
           return ("Waiting for permission" + (what ? ": " + what : "")).slice(0, 200);
         }
 
-        async function asked(data) {
+        async function waiting(sessionID, requestID, message) {
+          if (!sessionID) return;
+          await running(sessionID);
           await mkdir(PENDING_DIR, { recursive: true });
-          await writeFile(pendingFile(data.sessionID), JSON.stringify({
-            sessionID: data.sessionID, requestID: data.id, message: permissionMessage(data),
-            askedAt: Date.now(), pid: process.pid,
+          await writeFile(pendingFile(sessionID), JSON.stringify({
+            sessionID, requestID, message, askedAt: Date.now(), pid: process.pid,
           }));
         }
 
-        const cleared = (sessionID) => rm(pendingFile(sessionID), { force: true });
+        export function formMessage(form) {
+          const title = String(form.title ?? "").trim();
+          return (title ? "Asks: " + title : "Waiting for your answer").slice(0, 200);
+        }
+
+        const cleared = (sessionID) => sessionID ? rm(pendingFile(sessionID), { force: true }) : undefined;
 
         const brief = () => new Promise((resolve) => {
           execFile(CRACKED, ["status", "--brief"], { timeout: 5000 }, (error, stdout) =>
@@ -224,7 +231,18 @@ enum OpenCodeSetup {
                 try {
                   switch (event.type) {
                     case "session.execution.started": await running(data.sessionID); break;
-                    case "permission.asked": await running(data.sessionID); await asked(data); break;
+                    case "permission.asked":
+                      await waiting(data.sessionID, data.id, permissionMessage(data));
+                      break;
+                    case "form.created": {
+                      const form = data.form ?? data;
+                      await waiting(form.sessionID, form.id, formMessage(form));
+                      break;
+                    }
+                    case "form.replied":
+                    case "form.cancelled":
+                      await cleared(data.sessionID ?? data.form?.sessionID);
+                      break;
                     case "permission.replied":
                     case "session.idle":
                     case "session.deleted":
