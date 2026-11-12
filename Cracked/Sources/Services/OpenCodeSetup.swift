@@ -154,6 +154,8 @@ enum OpenCodeSetup {
         //
         // - Tells Cracked when a session is waiting for a permission decision, so it shows up
         //   under Needs You. OpenCode keeps pending prompts in memory only.
+        // - Tells Cracked which OpenCode server runs each session, so a session run by an app's
+        //   own server (e.g. T3 Code) is shown with, and opens, that app.
         // - When this Mac is under heavy load, adds a short warning to each new session's
         //   system prompt ("load 46 on 16 cores · Xcode 140%"), decided once per session so
         //   the prompt stays the same (and cacheable) for the rest of it.
@@ -165,8 +167,18 @@ enum OpenCodeSetup {
         const CRACKED = \(jsString(executable));
         const PENDING_DIR = \(jsString(pendingDirectory.path));
 
-        const pendingFile = (sessionID) =>
-          join(PENDING_DIR, String(sessionID).replace(/[^A-Za-z0-9_-]/g, "") + ".json");
+        const SERVERS_DIR = join(PENDING_DIR, "servers");
+        const safe = (sessionID) => String(sessionID).replace(/[^A-Za-z0-9_-]/g, "");
+        const pendingFile = (sessionID) => join(PENDING_DIR, safe(sessionID) + ".json");
+        const reported = new Set();
+
+        async function running(sessionID) {
+          if (!sessionID || reported.has(sessionID)) return;
+          await mkdir(SERVERS_DIR, { recursive: true });
+          await writeFile(join(SERVERS_DIR, safe(sessionID) + ".json"),
+            JSON.stringify({ sessionID, pid: process.pid }));
+          reported.add(sessionID);
+        }
 
         export function permissionMessage(data) {
           if (data.message) return String(data.message).slice(0, 200);
@@ -211,7 +223,8 @@ enum OpenCodeSetup {
                 const data = event.data ?? {};
                 try {
                   switch (event.type) {
-                    case "permission.asked": await asked(data); break;
+                    case "session.execution.started": await running(data.sessionID); break;
+                    case "permission.asked": await running(data.sessionID); await asked(data); break;
                     case "permission.replied":
                     case "session.idle":
                     case "session.deleted":

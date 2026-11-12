@@ -152,6 +152,35 @@ struct OpenCodeAgentsTests {
         #expect(missing.records(now: now).isEmpty)
     }
 
+    @Test("A session run by an app's own OpenCode server is shown with that app")
+    func serverHost() throws {
+        let host = ProcessContext(claudePID: nil, terminalPID: 96995,
+                                  terminalBundlePath: "/Applications/T3 Code (Nightly).app")
+        let sessions = OpenCodeAgents.sessions(
+            records: [record("ses_t3", busy: -30)], permissions: [:], processes: [],
+            hosts: ["ses_t3": host], now: now)
+        let session = try #require(sessions.first)
+        #expect(session.terminalPID == 96995)
+        #expect(session.terminalName == "T3 Code (Nightly)")
+        #expect(session.tty == nil)
+
+        let inTerminal = try #require(OpenCodeAgents.sessions(
+            records: [record("ses_t3", busy: -30)], permissions: [:], processes: [tui()],
+            hosts: ["ses_t3": host], now: now).first)
+        #expect(inTerminal.terminalName == "Ghostty", "The terminal showing it wins over the server's host")
+    }
+
+    @Test("Server records from a server that quit are dropped")
+    func serverFiles() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try Data(#"{"sessionID":"ses_a","pid":1}"#.utf8).write(to: dir.appendingPathComponent("ses_a.json"))
+        try Data(#"{"sessionID":"ses_b","pid":2}"#.utf8).write(to: dir.appendingPathComponent("ses_b.json"))
+        #expect(OpenCodeAgents.sessionServers(directory: dir, isAlive: { $0 == 1 }) == ["ses_a": 1])
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("ses_b.json").path))
+    }
+
     @Test("Pending permissions from a server that quit are dropped")
     func pendingFiles() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

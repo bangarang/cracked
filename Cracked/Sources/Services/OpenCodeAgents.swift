@@ -62,6 +62,9 @@ enum OpenCodeAgents {
 
     static var databaseURL: URL { dataDirectory().appendingPathComponent("opencode.db") }
 
+    /// Where the plugin records which OpenCode server (by PID) runs each session.
+    static var serversDirectory: URL { permissionsDirectory.appendingPathComponent("servers", isDirectory: true) }
+
     /// Where the OpenCode plugin leaves pending permission prompts.
     static var permissionsDirectory: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -87,15 +90,16 @@ enum OpenCodeAgents {
     // MARK: - Mapping
 
     /// Maps a session onto Cracked's agent model. `process` is the terminal UI showing it,
-    /// if one was found. Returns nil for sessions that aren't worth listing: idle, seen or
-    /// long finished, and not open in a terminal.
+    /// if one was found; otherwise `host` is the app running its server (e.g. T3 Code), if
+    /// known. Returns nil for sessions that aren't worth listing: idle, seen or long
+    /// finished, and not open in a terminal.
     static func session(from record: OpenCodeSessionRecord, permission: OpenCodePendingPermission?,
-                        process: AgentProcess?, now: Date) -> AgentSession? {
+                        process: AgentProcess?, host: ProcessContext? = nil, now: Date) -> AgentSession? {
         var session = AgentSession(
             sessionID: record.id, cwd: record.directory, status: .ready, message: nil,
             startedAt: record.createdAt, updatedAt: record.updatedAt,
-            claudePID: process?.pid, terminalPID: process?.terminalPID,
-            terminalBundlePath: process?.terminalBundlePath,
+            claudePID: process?.pid, terminalPID: process?.terminalPID ?? host?.terminalPID,
+            terminalBundlePath: process?.terminalBundlePath ?? host?.terminalBundlePath,
             title: record.title.flatMap { $0.isEmpty ? nil : $0 },
             provider: AgentProcess.Kind.opencode.rawValue, scanned: true, tty: process?.tty
         )
@@ -148,10 +152,11 @@ enum OpenCodeAgents {
     }
 
     static func sessions(records: [OpenCodeSessionRecord], permissions: [String: OpenCodePendingPermission],
-                         processes: [AgentProcess], now: Date) -> [AgentSession] {
+                         processes: [AgentProcess], hosts: [String: ProcessContext] = [:],
+                         now: Date) -> [AgentSession] {
         let (byRecord, unmatched) = match(records: records, processes: processes)
         let fromRecords = records.compactMap {
-            session(from: $0, permission: permissions[$0.id], process: byRecord[$0.id], now: now)
+            session(from: $0, permission: permissions[$0.id], process: byRecord[$0.id], host: hosts[$0.id], now: now)
         }
         // A terminal UI with no session yet: open, nothing asked.
         let open = unmatched.compactMap { process -> AgentSession? in
@@ -160,6 +165,28 @@ enum OpenCodeAgents {
             return session
         }
         return fromRecords + open
+    }
+
+    // MARK: - Servers
+
+    /// The OpenCode server (PID) running each session, as the plugin reported it.
+    /// Entries for servers that have quit are removed.
+    static func sessionServers(directory: URL = serversDirectory,
+                               isAlive: (Int32) -> Bool = ProcessTree.isAlive) -> [String: Int32] {
+        struct Entry: Decodable { let sessionID: String; let pid: Int32 }
+        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        else { return [:] }
+        var result: [String: Int32] = [:]
+        for file in files where file.pathExtension == "json" {
+            guard let data = try? Data(contentsOf: file),
+                  let entry = try? JSONDecoder().decode(Entry.self, from: data) else { continue }
+            guard isAlive(entry.pid) else {
+                try? FileManager.default.removeItem(at: file)
+                continue
+            }
+            result[entry.sessionID] = entry.pid
+        }
+        return result
     }
 
     // MARK: - Pending permissions
@@ -255,8 +282,21 @@ final class OpenCodeAgentReader: @unchecked Sendable {
         }
     }
 
+    /// The app hosting each server, by server PID. A server's parents never change.
+    private var hostCache: [Int32: ProcessContext] = [:]
+
     func sessions(processes: [AgentProcess], now: Date = Date()) -> [AgentSession] {
-        OpenCodeAgents.sessions(records: records(now: now), permissions: OpenCodeAgents.pendingPermissions(),
-                                processes: processes, now: now)
+        let servers = OpenCodeAgents.sessionServers()
+        var hosts: [String: ProcessContext] = [:]
+        lock.lock()
+        hostCache = hostCache.filter { Set(servers.values).contains($0.key) }
+        for (sessionID, pid) in servers {
+            let host = hostCache[pid] ?? ProcessTree.context(startingAt: pid)
+            hostCache[pid] = host
+            if host.terminalPID != nil { hosts[sessionID] = host }
+        }
+        lock.unlock()
+        return OpenCodeAgents.sessions(records: records(now: now), permissions: OpenCodeAgents.pendingPermissions(),
+                                       processes: processes, hosts: hosts, now: now)
     }
 }
