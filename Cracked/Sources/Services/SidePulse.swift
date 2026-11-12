@@ -254,6 +254,7 @@ final class SidePulseLights {
     static let brightnessKey = "sidePulseBrightness"
 
     private let queue = DispatchQueue(label: "com.bangarang.cracked.sidepulse")
+    private let ejectGuard = SidePulseEjectGuard()
     /// Read and written on `queue` only.
     private nonisolated(unsafe) var lastWritten: [String: String] = [:]
     private nonisolated(unsafe) var lastKeepalive: [String: Date] = [:]
@@ -286,10 +287,10 @@ final class SidePulseLights {
 
     /// Called whenever Cracked refreshes its agents (about once a second).
     func update(sessions: [AgentSession], seenSince: Date, now: Date = Date()) {
-        guard enabled, !asleep else { return }
-        let state = SidePulse.lightState(for: sessions, seenSince: seenSince, now: now)
+        guard !asleep else { return }
         rescanIfDue(now: now)
-        guard !serviceRunning else { return }
+        guard enabled, !serviceRunning else { return }
+        let state = SidePulse.lightState(for: sessions, seenSince: seenSince, now: now)
         let brightness = brightness
         let targets = devices.map { device in
             (device, SidePulse.applyBrightness(SidePulse.animation(for: state, ledCount: device.ledCount),
@@ -309,6 +310,13 @@ final class SidePulseLights {
         lastScan = now
         serviceRunning = SidePulse.isServiceRunning()
         devices = SidePulse.discover()
+        // Remember each Pro's volume, so the eject guard knows it even once macOS has unmounted it.
+        for device in devices where device.model == .pro {
+            if let uuid = try? device.root.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString {
+                SidePulseEjectGuard.remember(volumeUUID: uuid)
+            }
+        }
+        ejectGuard.update()
         let live = Set(devices.map(\.id))
         queue.async { [self] in
             lastWritten = lastWritten.filter { live.contains($0.key) }

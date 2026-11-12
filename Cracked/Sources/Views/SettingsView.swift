@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage("agentNotifications") private var agentNotifications: Bool = false
     @AppStorage(SidePulseLights.enabledKey) private var sidePulseEnabled: Bool = true
     @AppStorage(SidePulseLights.brightnessKey) private var sidePulseBrightness: Int = 255
+    @AppStorage(SidePulseEjectGuard.enabledKey) private var sidePulseKeepMounted: Bool = true
 
     @State private var hooksInstalled = ClaudeCodeSetup.areHooksInstalled
     @State private var mcpInstalled = ClaudeCodeSetup.isMCPInstalled
@@ -93,6 +94,11 @@ struct SettingsView: View {
                     .frame(width: 180)
             }
             .disabled(!sidePulseEnabled)
+
+            Toggle(isOn: $sidePulseKeepMounted) {
+                Text("Keep SidePulse Pro mounted")
+                Text("Stops macOS ejecting the SD card when the Mac is locked or wakes from hibernation. While on, the Pro can't be ejected from Finder; just pull it out.")
+            }
 
             if sidePulseDevices.isEmpty {
                 Text("No SidePulse connected. A Dot needs its USB storage turned on.")

@@ -49,6 +49,7 @@
 		F522356289C547654A031400 /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA6A2660C776C2F4FE16745 /* ProcessMonitor.swift */; };
 		F83226CE6AE0E899C9F111AD /* MenuBarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 067C47280D3F7636CE9F1EE7 /* MenuBarViewModel.swift */; };
 		F9B6749270382386A3E798F9 /* CrackedCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9BE1F5FEC9CDB1CCD755BA7 /* CrackedCLI.swift */; };
+		FD1AC9E1C6892C3CBE1DB897 /* SidePulseEjectGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B87FCE5883D5AB643959213 /* SidePulseEjectGuard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,7 @@
 		7FDFE1CA5A8BC2DB5ED2322A /* LocalModelRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelRowView.swift; sourceTree = "<group>"; };
 		8BF0DED8FA24656301318116 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
 		8F1050A62D13F524D9A39827 /* StatsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsViewModel.swift; sourceTree = "<group>"; };
+		9B87FCE5883D5AB643959213 /* SidePulseEjectGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidePulseEjectGuard.swift; sourceTree = "<group>"; };
 		9CC58D76AED71F00F8525E90 /* AlertEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEngineTests.swift; sourceTree = "<group>"; };
 		A302E853DC5A19D2B7204050 /* Cracked.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cracked.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AEE49540ECFAAE8107026581 /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
@@ -236,6 +238,7 @@
 				0BA6A2660C776C2F4FE16745 /* ProcessMonitor.swift */,
 				B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */,
 				C521C6192F09E5714457EEE9 /* SidePulse.swift */,
+				9B87FCE5883D5AB643959213 /* SidePulseEjectGuard.swift */,
 				271C41C482A0CD06A5A76E0C /* SystemReport.swift */,
 				F3D00CDA258BC5B4AC091903 /* TerminalAgents.swift */,
 			);
@@ -356,6 +359,7 @@
 				E65E940EB372D21BB1049452 /* RecordTracker.swift in Sources */,
 				012BE44BFD876B0E736367B5 /* SettingsView.swift in Sources */,
 				1ADBF7AE9A049DDE0923CC30 /* SidePulse.swift in Sources */,
+				FD1AC9E1C6892C3CBE1DB897 /* SidePulseEjectGuard.swift in Sources */,
 				6B2D3B7571A0AC346E8D34AB /* StaleAppRowView.swift in Sources */,
 				47686BFC7EE9443C9677D210 /* StaleApps.swift in Sources */,
 				6D13F9EF2FC06660C950E715 /* StatsView.swift in Sources */,

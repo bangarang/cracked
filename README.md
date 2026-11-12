@@ -96,7 +96,7 @@ Got a [SidePulse](https://sidepulse.io) Pro (SD card) or Dot (USB-C)? Cracked li
 | Solid cyan | An agent finished, until you open Cracked's menu (or 20 minutes pass) |
 | Dim pulse | Nothing going on |
 
-Cracked writes the device's `LEDS.LED` only when the state changes, fades the lights out when your Mac sleeps, and keeps the Pro's SD card awake. Turn it off or set the brightness in **Settings → SidePulse**. A Dot needs its USB storage on, so it mounts as a drive. While SidePulse's own background service is running, Cracked leaves the lights to it.
+Cracked writes the device's `LEDS.LED` only when the state changes, fades the lights out when your Mac sleeps, and keeps the Pro's SD card awake. It also keeps the Pro mounted when macOS would eject it: an SD card that reappears while the Mac is locked (after a hibernate wake, say) gets ejected by macOS, and Cracked refuses that eject and remounts the card once you unlock. Only SidePulse cards are kept, and you can switch this off to eject the Pro from Finder. Turn the lights off or set the brightness in **Settings → SidePulse**. A Dot needs its USB storage on, so it mounts as a drive. While SidePulse's own background service is running, Cracked leaves the lights to it.
 
 ### 🏆 All-Time Records & the Hall of Shame
 The **Records & Stats** window brings it all together:

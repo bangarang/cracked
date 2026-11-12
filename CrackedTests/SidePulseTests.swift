@@ -105,6 +105,22 @@ struct SidePulseTests {
         #expect(SidePulse.readUncached(url) == Data("off".utf8))
     }
 
+    @Test("The eject guard only protects SidePulse cards in the built-in SD reader")
+    func ejectGuard() {
+        func prevent(_ proto: String?, model: String? = nil, name: String?, uuid: String? = nil,
+                     known: Set<String> = []) -> Bool {
+            SidePulseEjectGuard.shouldPrevent(protocolName: proto, model: model, volumeName: name,
+                                              volumeUUID: uuid, known: known)
+        }
+        #expect(prevent("Secure Digital", name: "SidePulse"))
+        #expect(prevent(nil, model: "Built In SDXC Reader", name: "SidePulse Pro"))
+        #expect(prevent("Secure Digital", name: nil, uuid: "b293bb91-193c", known: ["B293BB91-193C"]),
+                "Unmounted, so no name, but its volume was seen before")
+        #expect(!prevent("Secure Digital", name: "EOS_DIGITAL"), "Someone else's SD card ejects normally")
+        #expect(!prevent("USB", name: "PulseDot"), "Only the SD reader has the locked-screen problem")
+        #expect(!prevent("USB", name: "SidePulse", uuid: "X", known: ["X"]))
+    }
+
     @Test("SidePulse's service counts as running only if its socket answers")
     func service() {
         #expect(!SidePulse.isServiceRunning(socket: URL(fileURLWithPath: "/tmp/no-such-\(UUID().uuidString).sock")))
