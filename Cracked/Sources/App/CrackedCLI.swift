@@ -4,7 +4,7 @@ import Foundation
 /// Claude Code hooks, the MCP server and humans in a terminal.
 enum CrackedCLI {
     #if DEBUG
-    static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help", "snapshot"]
+    static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help", "snapshot", "t3-link"]
     #else
     static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help"]
     #endif
@@ -49,6 +49,17 @@ enum CrackedCLI {
             }
 
         #if DEBUG
+        case "t3-link":
+            // Prints the T3 Code link a session's row opens, without opening it.
+            guard let id = arguments.first, let env = T3Code.environmentID(),
+                  let thread = T3Code.threadID(providerSessionID: id),
+                  let url = T3Code.threadLink(environmentID: env, threadID: thread) else {
+                print("no thread")
+                return 1
+            }
+            print(url.absoluteString)
+            return 0
+
         case "snapshot":
             return MainActor.assumeIsolated {
                 DebugSnapshots.run(outputDirectory: arguments.first ?? FileManager.default.currentDirectoryPath)

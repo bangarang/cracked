@@ -290,6 +290,11 @@ enum AgentNavigator {
             NSWorkspace.shared.open(url)
             return
         }
+        if let bundlePath = session.terminalBundlePath,
+           T3Code.isT3Code(bundleID: Bundle(path: bundlePath)?.bundleIdentifier),
+           T3Code.open(sessionID: session.sessionID, appBundlePath: bundlePath) {
+            return
+        }
         if let tty = session.tty, let bundlePath = session.terminalBundlePath,
            let bundleID = Bundle(path: bundlePath)?.bundleIdentifier,
            let script = focusScript(bundleID: bundleID, tty: tty) {
