@@ -148,16 +148,13 @@ struct PaseoAgentsTests {
             proc(23, 12, "<defunct>"),
             proc(24, 12, "/bin/zsh"),
             proc(30, 5, "claude"),
-            proc(40, 5, "/opt/homebrew/bin/opencode"),
-            proc(41, 1, "/opt/homebrew/bin/opencode"),
         ]
-        let argv: [Int32: [String]] = [40: ["opencode", "--continue"], 41: ["opencode", "serve", "--port=4096"]]
         let tracked = Dictionary(uniqueKeysWithValues: MenuBarViewModel.computeTrackedApps(
-            from: processes, arguments: { argv[$0] }).map { ($0.name, $0) })
+            from: processes).map { ($0.name, $0) })
         #expect(tracked["Paseo"]?.count == 3)
         #expect(tracked["Paseo"]?.label == "agents")
         #expect(tracked["Claude Code"]?.count == 1, "Paseo's claude processes aren't terminal sessions")
-        #expect(tracked["OpenCode"]?.count == 1, "Paseo's opencode and OpenCode servers aren't sessions")
+        #expect(tracked["OpenCode"] == nil, "OpenCode is counted from the agents found, not processes")
         #expect(tracked["T3 Code"] == nil)
     }
 
@@ -173,13 +170,15 @@ struct PaseoAgentsTests {
             agent("b", provider: "opencode", host: t3),
             agent("c", provider: "opencode", host: nil),
             agent("d", provider: "claude", host: "/Applications/Ghostty.app"),
+            AgentSession(sessionID: "e", cwd: "/tmp", status: .working, message: nil, startedAt: Date(), updatedAt: Date(),
+                         paseoAgentID: "p1", paseoServerID: "s", provider: "opencode"),
         ]
         let tracked = Dictionary(uniqueKeysWithValues: MenuBarViewModel.computeTrackedApps(
-            from: [], agents: agents, arguments: { _ in nil }).map { ($0.name, $0) })
+            from: [], agents: agents).map { ($0.name, $0) })
         #expect(tracked["T3 Code"]?.count == 2)
         #expect(tracked["T3 Code"]?.label == "agents")
         #expect(tracked["T3 Code"]?.appBundlePath == t3)
-        #expect(tracked["OpenCode"]?.count == 2, "No terminal UIs, but two sessions running")
+        #expect(tracked["OpenCode"]?.count == 2, "No terminal UIs, but two sessions running; Paseo's is Paseo's")
     }
 
     @Test("Tracked counts read singular for one")

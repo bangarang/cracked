@@ -197,8 +197,7 @@ final class MenuBarViewModel: ObservableObject {
 
     nonisolated static func computeTrackedApps(
         from processes: [ProcessSnapshot],
-        agents: [AgentSession] = [],
-        arguments: (Int32) -> [String]? = { ProcessTree.arguments(of: $0) }
+        agents: [AgentSession] = []
     ) -> [TrackedAppCount] {
         var results: [TrackedAppCount] = []
 
@@ -242,16 +241,10 @@ final class MenuBarViewModel: ObservableObject {
             results.append(TrackedAppCount(name: "Claude Code", count: claudeCount, label: "sessions", appBundlePath: "/Applications/Claude.app"))
         }
 
-        // OpenCode sessions outside Paseo: the ones listed under Agents (open in a terminal
-        // or an app, or working), which covers sessions run by a server with no terminal of
-        // their own. At least the `opencode` terminal UIs running (not its servers).
-        let openCodeTerminals = processes.count { p in
-            let n = p.name
-            guard (n == "opencode" || n.hasSuffix("/opencode")), !paseoDaemonPIDs.contains(p.ppid) else { return false }
-            return arguments(p.pid).map(OpenCodeAgents.isSessionProcess(arguments:)) ?? true
-        }
-        let openCodeAgents = agents.count { $0.provider == AgentProcess.Kind.opencode.rawValue && $0.source != .paseo }
-        let openCodeCount = max(openCodeTerminals, openCodeAgents)
+        // OpenCode sessions outside Paseo: the ones listed under Agents. That's every
+        // terminal UI (with or without a session yet), and sessions run by a server with no
+        // terminal of their own (e.g. T3 Code's), but not OpenCode's servers or one-shot runs.
+        let openCodeCount = agents.count { $0.provider == AgentProcess.Kind.opencode.rawValue && $0.source != .paseo }
         if openCodeCount > 0 {
             results.append(TrackedAppCount(name: "OpenCode", count: openCodeCount, label: "sessions", appBundlePath: "/Applications/OpenCode.app"))
         }

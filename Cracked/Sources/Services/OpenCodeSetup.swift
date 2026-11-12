@@ -16,12 +16,7 @@ enum OpenCodeSetup {
 
     /// `$XDG_CONFIG_HOME/opencode`, or `~/.config/opencode`.
     static func configDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let custom = environment["XDG_CONFIG_HOME"], !custom.isEmpty {
-            return URL(fileURLWithPath: (custom as NSString).expandingTildeInPath, isDirectory: true)
-                .appendingPathComponent("opencode", isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/opencode", isDirectory: true)
+        OpenCodeAgents.xdgDirectory("XDG_CONFIG_HOME", fallback: ".config", environment: environment)
     }
 
     /// Whether OpenCode looks installed: it has a config folder or a database.
@@ -85,13 +80,11 @@ enum OpenCodeSetup {
         let fm = FileManager.default
         let url = configURL
         try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if fm.fileExists(atPath: url.path) {
-            let backup = url.appendingPathExtension("cracked-backup")
-            try? fm.removeItem(at: backup)
+        // Keep the backup of the file as it was before Cracked first touched it.
+        let backup = url.appendingPathExtension("cracked-backup")
+        if fm.fileExists(atPath: url.path), !fm.fileExists(atPath: backup.path) {
             try fm.copyItem(at: url, to: backup)
         }
-        var config = config
-        if config["$schema"] == nil { config["$schema"] = "https://opencode.ai/config.json" }
         let data = try JSONSerialization.data(
             withJSONObject: config, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try data.write(to: url, options: .atomic)
@@ -162,15 +155,17 @@ enum OpenCodeSetup {
         //   the prompt stays the same (and cacheable) for the rest of it.
 
         import { execFile } from "node:child_process";
-        import { mkdir, rm, writeFile } from "node:fs/promises";
+        import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
         import { join } from "node:path";
 
         const CRACKED = \(jsString(executable));
         const PENDING_DIR = \(jsString(pendingDirectory.path));
 
         const SERVERS_DIR = join(PENDING_DIR, "servers");
-        const safe = (sessionID) => String(sessionID).replace(/[^A-Za-z0-9_-]/g, "");
-        const pendingFile = (sessionID) => join(PENDING_DIR, safe(sessionID) + ".json");
+        const safe = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, "");
+        // One file per prompt (<session>~<request>.json): a session can wait on several at once.
+        const pendingFile = (sessionID, requestID) =>
+          join(PENDING_DIR, safe(sessionID) + "~" + safe(requestID ?? "prompt") + ".json");
         const reported = new Set();
 
         async function running(sessionID) {
@@ -192,7 +187,7 @@ enum OpenCodeSetup {
           if (!sessionID) return;
           await running(sessionID);
           await mkdir(PENDING_DIR, { recursive: true });
-          await writeFile(pendingFile(sessionID), JSON.stringify({
+          await writeFile(pendingFile(sessionID, requestID), JSON.stringify({
             sessionID, requestID, message, askedAt: Date.now(), pid: process.pid,
           }));
         }
@@ -202,10 +197,20 @@ enum OpenCodeSetup {
           return (title ? "Asks: " + title : "Waiting for your answer").slice(0, 200);
         }
 
-        const cleared = (sessionID) => sessionID ? rm(pendingFile(sessionID), { force: true }) : undefined;
+        async function removeWhere(match) {
+          const names = await readdir(PENDING_DIR).catch(() => []);
+          await Promise.all(names.filter(match).map((name) => rm(join(PENDING_DIR, name), { force: true })));
+        }
+        /** One prompt answered. */
+        const answered = (requestID) =>
+          requestID ? removeWhere((name) => name.endsWith("~" + safe(requestID) + ".json")) : undefined;
+        /** The turn ended: nothing in this session is waiting any more. */
+        const cleared = (sessionID) =>
+          sessionID ? removeWhere((name) => name.startsWith(safe(sessionID) + "~")) : undefined;
 
+        // `Cracked status --brief` takes about 0.3 s; never hold up a session for long.
         const brief = () => new Promise((resolve) => {
-          execFile(CRACKED, ["status", "--brief"], { timeout: 5000 }, (error, stdout) =>
+          execFile(CRACKED, ["status", "--brief"], { timeout: 2000 }, (error, stdout) =>
             resolve(error ? "" : String(stdout).trim()));
         });
 
@@ -214,14 +219,18 @@ enum OpenCodeSetup {
           setup: async (ctx) => {
             const briefs = new Map();
             await ctx.session.hook("context", async (input) => {
-              let text = briefs.get(input.sessionID);
-              if (text === undefined) {
-                text = brief();
-                briefs.set(input.sessionID, text);
-                if (briefs.size > 500) briefs.delete(briefs.keys().next().value);
+              try {
+                let text = briefs.get(input.sessionID);
+                if (text === undefined) {
+                  text = brief();
+                  briefs.set(input.sessionID, text);
+                  if (briefs.size > 500) briefs.delete(briefs.keys().next().value);
+                }
+                const warning = await text;
+                if (warning && Array.isArray(input.system)) input.system.push({ type: "text", text: warning });
+              } catch {
+                // Never get in the way of a session.
               }
-              const warning = await text;
-              if (warning) input.system.push({ type: "text", text: warning });
             });
 
             const controller = new AbortController();
@@ -241,9 +250,11 @@ enum OpenCodeSetup {
                     }
                     case "form.replied":
                     case "form.cancelled":
-                      await cleared(data.sessionID ?? data.form?.sessionID);
+                      await answered(data.id ?? data.form?.id);
                       break;
                     case "permission.replied":
+                      await (data.requestID ? answered(data.requestID) : cleared(data.sessionID));
+                      break;
                     case "session.idle":
                     case "session.deleted":
                     case "session.execution.succeeded":

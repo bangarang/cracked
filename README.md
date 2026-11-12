@@ -59,7 +59,7 @@ Cracked counts what you're actually juggling and logs every **PR**:
 - **Cursor windows**
 - **Paseo agents**
 - **Claude Code sessions** (outside Paseo)
-- **OpenCode sessions** (terminal UIs, outside Paseo)
+- **OpenCode sessions** (outside Paseo, including ones running in an app such as T3 Code)
 - **Warp tabs**
 
 Every app gets a history chart and a PR badge with the date you set it. Beat your record of 161 tabs and you have a new PR. We're not judging. (We're judging a little.)

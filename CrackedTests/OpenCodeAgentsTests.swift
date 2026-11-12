@@ -14,7 +14,8 @@ struct OpenCodeAgentsTests {
         func at(_ offset: TimeInterval?) -> Date? { offset.map { now.addingTimeInterval($0) } }
         return OpenCodeSessionRecord(
             id: id, directory: directory, title: title, createdAt: at(created)!, updatedAt: at(updated)!,
-            busyAt: at(busy), idleAt: at(idle), outcome: outcome, viewedAt: at(viewed))
+            busyAt: at(busy), idleAt: at(idle),
+            outcome: outcome.flatMap(OpenCodeSessionRecord.Outcome.init(rawValue:)), viewedAt: at(viewed))
     }
 
     func tui(pid: Int32 = 4242, cwd: String = "/Users/me/app", started: TimeInterval = -7200) -> AgentProcess {
@@ -152,29 +153,71 @@ struct OpenCodeAgentsTests {
         #expect(records.map(\.id) == ["ses_busy"])
         let busy = try #require(records.first)
         #expect(busy.isBusy)
-        #expect(busy.outcome == "succeeded")
+        #expect(busy.outcome == .succeeded)
         #expect(busy.title == "Title")
 
         let missing = OpenCodeAgentReader(databaseURL: dir.appendingPathComponent("nope.db"))
         #expect(missing.records(now: now).isEmpty)
     }
 
-    @Test("A session run by an app's own OpenCode server is shown with that app")
+    @Test("A session run by an app's own OpenCode server is shown with that app, even with a terminal open nearby")
     func serverHost() throws {
         let host = ProcessContext(claudePID: nil, terminalPID: 96995,
                                   terminalBundlePath: "/Applications/T3 Code (Nightly).app")
+        let finished = record("ses_t3", busy: -600, idle: -30, outcome: "succeeded")
         let sessions = OpenCodeAgents.sessions(
-            records: [record("ses_t3", busy: -30)], permissions: [:], processes: [],
-            hosts: ["ses_t3": host], now: now)
-        let session = try #require(sessions.first)
-        #expect(session.terminalPID == 96995)
-        #expect(session.terminalName == "T3 Code (Nightly)")
+            records: [finished], permissions: [:], processes: [tui()],
+            placements: ["ses_t3": .app(host)], now: now)
+        let byID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionID, $0) })
+        let session = try #require(byID["ses_t3"])
+        #expect(session.status == .done)
+        #expect(session.terminalName == "T3 Code (Nightly)", "An idle terminal in the same folder doesn't claim it")
         #expect(session.tty == nil)
+        #expect(byID["opencode-4242"]?.status == .ready, "The terminal is listed on its own, with no session yet")
+    }
 
-        let inTerminal = try #require(OpenCodeAgents.sessions(
-            records: [record("ses_t3", busy: -30)], permissions: [:], processes: [tui()],
-            hosts: ["ses_t3": host], now: now).first)
-        #expect(inTerminal.terminalName == "Ghostty", "The terminal showing it wins over the server's host")
+    @Test("A one-shot `opencode run` session never lands in Needs You, even next to an open terminal")
+    func oneShot() {
+        let finished = record("ses_run", busy: -600, idle: -30, outcome: "succeeded")
+        let sessions = OpenCodeAgents.sessions(
+            records: [finished], permissions: [:], processes: [tui()], placements: ["ses_run": .oneShot], now: now)
+        #expect(!sessions.contains { $0.sessionID == "ses_run" })
+        let working = OpenCodeAgents.sessions(
+            records: [record("ses_run", busy: -30)], permissions: [:], processes: [], placements: ["ses_run": .oneShot], now: now)
+        #expect(working.first?.status == .working, "Working is still shown")
+    }
+
+    @Test("A standalone terminal UI shows the session its own server runs, wherever it is")
+    func standalone() throws {
+        let sessions = OpenCodeAgents.sessions(
+            records: [record("ses_mine", directory: "/elsewhere", busy: -30), record("ses_other", busy: -20)],
+            permissions: [:], processes: [tui()], placements: ["ses_mine": .terminal(tui())], now: now)
+        let byID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionID, $0) })
+        #expect(byID["ses_mine"]?.tty == "/dev/ttys004")
+        #expect(byID["ses_other"]?.tty == nil, "The terminal is taken, so the folder match doesn't apply")
+    }
+
+    @Test("Service sessions fall back to the desktop app when no terminal shows them")
+    func desktopFallback() throws {
+        let desktop = ProcessContext(claudePID: nil, terminalPID: 777, terminalBundlePath: "/Applications/OpenCode.app")
+        let finished = record("ses_svc", directory: "/nowhere", busy: -600, idle: -30, outcome: "succeeded")
+        let session = try #require(OpenCodeAgents.sessions(
+            records: [finished], permissions: [:], processes: [], placements: ["ses_svc": .shared(fallback: desktop)],
+            now: now).first)
+        #expect(session.status == .done)
+        #expect(session.terminalName == "OpenCode")
+    }
+
+    @Test("Prompts and servers of subagents count for the session that's listed")
+    func subagents() {
+        let pending = [
+            "ses_child": OpenCodePendingPermission(sessionID: "ses_child", message: "child", askedAt: 2, pid: nil),
+            "ses_root": OpenCodePendingPermission(sessionID: "ses_root", message: "root", askedAt: 1, pid: nil),
+        ]
+        let onRoots = OpenCodeAgents.onRoots(pending, root: { $0 == "ses_child" ? "ses_root" : $0 },
+                                             newer: { $0.askedAt > $1.askedAt })
+        #expect(onRoots.keys.sorted() == ["ses_root"])
+        #expect(onRoots["ses_root"]?.message == "child", "The newest prompt wins")
     }
 
     @Test("Server records from a server that quit are dropped")
@@ -188,20 +231,22 @@ struct OpenCodeAgentsTests {
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("ses_b.json").path))
     }
 
-    @Test("Pending permissions from a server that quit are dropped")
+    @Test("Pending prompts from a server that quit are dropped; the newest of several wins")
     func pendingFiles() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        func write(_ id: String, pid: Int32) throws {
-            let json = #"{"sessionID":"\#(id)","requestID":"per_1","message":"m","askedAt":1,"pid":\#(pid)}"#
-            try Data(json.utf8).write(to: dir.appendingPathComponent("\(id).json"))
+        func write(_ id: String, request: String, message: String, askedAt: Int, pid: Int32) throws {
+            let json = #"{"sessionID":"\#(id)","requestID":"\#(request)","message":"\#(message)","askedAt":\#(askedAt),"pid":\#(pid)}"#
+            try Data(json.utf8).write(to: dir.appendingPathComponent("\(id)~\(request).json"))
         }
-        try write("ses_live", pid: 1)
-        try write("ses_dead", pid: 2)
+        try write("ses_live", request: "per_1", message: "first", askedAt: 1, pid: 1)
+        try write("ses_live", request: "frm_2", message: "second", askedAt: 2, pid: 1)
+        try write("ses_dead", request: "per_1", message: "m", askedAt: 1, pid: 2)
         let pending = OpenCodeAgents.pendingPermissions(directory: dir, isAlive: { $0 == 1 })
         #expect(Set(pending.keys) == ["ses_live"])
-        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("ses_dead.json").path))
+        #expect(pending["ses_live"]?.message == "second")
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("ses_dead~per_1.json").path))
     }
 }
 
@@ -246,6 +291,15 @@ struct OpenCodeSetupTests {
                       "session.execution.started"] {
             #expect(source.contains(#"case "\#(event)""#), "Handles \(event)")
         }
+    }
+
+    @Test("setup and uninstall act only on the agents named, and refuse a typo")
+    func cliAgents() {
+        let all: () -> [CrackedCLI.Agent] = { CrackedCLI.Agent.allCases }
+        #expect(CrackedCLI.agents([], whenNoneNamed: all) == [.claude, .opencode])
+        #expect(CrackedCLI.agents(["OpenCode"], whenNoneNamed: all) == [.opencode])
+        #expect(CrackedCLI.agents(["opncode"], whenNoneNamed: all) == nil, "A typo never falls back to everything")
+        #expect(CrackedCLI.agents(["claude", "nope"], whenNoneNamed: all) == nil)
     }
 
     @Test("XDG_CONFIG_HOME overrides ~/.config")

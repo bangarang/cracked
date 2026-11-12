@@ -3,16 +3,30 @@ import Foundation
 /// `Cracked <command>`: the same binary as the menu bar app, used by
 /// Claude Code hooks, the OpenCode plugin, the MCP server and humans in a terminal.
 enum CrackedCLI {
-    /// "claude" and/or "opencode": the ones named, or every one that's installed.
-    static func setupTargets(_ arguments: [String]) -> [String] {
-        let named = arguments.map { $0.lowercased() }.filter { ["claude", "opencode"].contains($0) }
-        if !named.isEmpty { return named }
-        var found: [String] = []
-        if FileManager.default.fileExists(atPath: ClaudeCodeSetup.settingsURL.deletingLastPathComponent().path) {
-            found.append("claude")
+    /// An agent `setup` and `uninstall` can connect Cracked to.
+    enum Agent: String, CaseIterable {
+        case claude, opencode
+
+        var isInstalled: Bool {
+            switch self {
+            case .claude: FileManager.default.fileExists(atPath: ClaudeCodeSetup.settingsURL.deletingLastPathComponent().path)
+            case .opencode: OpenCodeSetup.isDetected
+            }
         }
-        if OpenCodeSetup.isDetected { found.append("opencode") }
-        return found
+    }
+
+    /// The agents named in `arguments`, or `whenNoneNamed` when there are none. Nil when
+    /// an argument isn't an agent, so a typo never acts on everything.
+    static func agents(_ arguments: [String], whenNoneNamed: () -> [Agent]) -> [Agent]? {
+        guard !arguments.isEmpty else { return whenNoneNamed() }
+        let named = arguments.map { Agent(rawValue: $0.lowercased()) }
+        return named.contains(nil) ? nil : named.compactMap { $0 }
+    }
+
+    private static func unknownAgent() -> Int32 {
+        let names = Agent.allCases.map(\.rawValue).joined(separator: ", ")
+        FileHandle.standardError.write(Data("✗ Unknown agent. Use one of: \(names)\n".utf8))
+        return 1
     }
 
     #if DEBUG
@@ -49,30 +63,37 @@ enum CrackedCLI {
 
         case "setup":
             // `setup` connects every agent found on this Mac; `setup claude` / `setup opencode` just one.
-            let targets = setupTargets(arguments)
+            guard let targets = agents(arguments, whenNoneNamed: { Agent.allCases.filter(\.isInstalled) }) else {
+                return unknownAgent()
+            }
             guard !targets.isEmpty else {
                 FileHandle.standardError.write(Data("✗ Found neither Claude Code nor OpenCode. Name one: setup claude | setup opencode\n".utf8))
                 return 1
             }
             var failed = false
+            var succeeded = false
             func step(_ done: String, _ action: () throws -> Void) {
                 do {
                     try action()
                     print("✓ \(done)")
+                    succeeded = true
                 } catch {
                     failed = true
                     FileHandle.standardError.write(Data("✗ \(error.localizedDescription)\n".utf8))
                 }
             }
-            if targets.contains("claude") {
+            if targets.contains(.claude) {
                 step("Claude Code hooks installed in \(ClaudeCodeSetup.settingsURL.path)") { try ClaudeCodeSetup.installHooks() }
                 step("MCP server '\(ClaudeCodeSetup.mcpServerName)' registered with Claude Code") { try ClaudeCodeSetup.installMCP() }
             }
-            if targets.contains("opencode") {
+            if targets.contains(.opencode) {
                 step("OpenCode plugin installed at \(OpenCodeSetup.pluginURL.path)") { try OpenCodeSetup.installPlugin() }
                 step("MCP server '\(OpenCodeSetup.mcpServerName)' added to \(OpenCodeSetup.configURL.path)") { try OpenCodeSetup.installMCP() }
             }
-            print("Start a new session to pick them up. OpenCode's background service needs a restart: opencode service restart")
+            if succeeded {
+                print("Start a new session to pick them up."
+                      + (targets.contains(.opencode) ? " OpenCode loads plugins at startup: opencode service restart" : ""))
+            }
             return failed ? 1 : 0
 
         #if DEBUG
@@ -83,13 +104,13 @@ enum CrackedCLI {
         #endif
 
         case "uninstall":
-            let targets = arguments.isEmpty ? ["claude", "opencode"] : setupTargets(arguments)
-            if targets.contains("claude") {
+            guard let targets = agents(arguments, whenNoneNamed: { Agent.allCases }) else { return unknownAgent() }
+            if targets.contains(.claude) {
                 try? ClaudeCodeSetup.uninstallHooks()
                 try? ClaudeCodeSetup.uninstallMCP()
                 print("Removed Cracked's Claude Code hooks and MCP server.")
             }
-            if targets.contains("opencode") {
+            if targets.contains(.opencode) {
                 try? OpenCodeSetup.uninstallPlugin()
                 try? OpenCodeSetup.uninstallMCP()
                 print("Removed Cracked's OpenCode plugin and MCP server.")

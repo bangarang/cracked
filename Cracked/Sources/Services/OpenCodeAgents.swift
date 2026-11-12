@@ -9,6 +9,10 @@ import GRDB
 /// of them writes to the same SQLite database. So the database, not the `opencode`
 /// process, is where a session's title and state live.
 struct OpenCodeSessionRecord: Sendable, Equatable {
+    enum Outcome: String, Sendable {
+        case succeeded, failed
+    }
+
     let id: String
     let directory: String
     let title: String?
@@ -18,8 +22,8 @@ struct OpenCodeSessionRecord: Sendable, Equatable {
     let busyAt: Date?
     /// When it last finished one.
     let idleAt: Date?
-    /// How the last turn ended: "succeeded" or "failed".
-    let outcome: String?
+    /// How the last turn ended.
+    let outcome: Outcome?
     /// When someone last looked at it (OpenCode's desktop and web apps record this).
     let viewedAt: Date?
 
@@ -30,9 +34,10 @@ struct OpenCodeSessionRecord: Sendable, Equatable {
     }
 }
 
-/// A permission prompt an OpenCode session is waiting on, written by Cracked's OpenCode
-/// plugin to `~/Library/Application Support/Cracked/opencode/<session>.json` and
-/// removed once it's answered. OpenCode keeps pending prompts in memory only.
+/// Something an OpenCode session is waiting on you for (a permission decision, or a
+/// question the agent asked), written by Cracked's OpenCode plugin to
+/// `~/Library/Application Support/Cracked/opencode/` and removed once it's answered.
+/// OpenCode keeps pending prompts in memory only.
 struct OpenCodePendingPermission: Codable, Sendable, Equatable {
     let sessionID: String
     let message: String?
@@ -44,6 +49,20 @@ struct OpenCodePendingPermission: Codable, Sendable, Equatable {
     var askedDate: Date { Date(timeIntervalSince1970: askedAt / 1000) }
 }
 
+/// Where a session can be looked at, decided from the server running it (as the
+/// plugin reports it).
+enum OpenCodePlacement: Equatable {
+    /// Its server runs under this terminal UI (`opencode --standalone`).
+    case terminal(AgentProcess)
+    /// Its server runs inside an app, e.g. T3 Code.
+    case app(ProcessContext)
+    /// A one-shot `opencode run`: not open anywhere.
+    case oneShot
+    /// The shared background service, or a server Cracked knows nothing about: any
+    /// terminal UI in its directory may be showing it, else `fallback` (the desktop app).
+    case shared(fallback: ProcessContext?)
+}
+
 enum OpenCodeAgents {
     /// A finished session counts as "done" (your move) this long, unless it has been viewed.
     static let recentlyFinishedWindow: TimeInterval = TerminalAgents.recentlyFinishedWindow
@@ -51,26 +70,37 @@ enum OpenCodeAgents {
     /// (e.g. its server was killed mid-turn).
     static let busyStaleAfter: TimeInterval = 6 * 3600
 
-    /// `$XDG_DATA_HOME/opencode`, or `~/.local/share/opencode`.
-    static func dataDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let custom = environment["XDG_DATA_HOME"], !custom.isEmpty {
-            return URL(fileURLWithPath: (custom as NSString).expandingTildeInPath, isDirectory: true)
-                .appendingPathComponent("opencode", isDirectory: true)
+    /// `$<key>/opencode`, or `~/<fallback>/opencode`: OpenCode follows the XDG base
+    /// directories on macOS too.
+    static func xdgDirectory(_ key: String, fallback: String,
+                             environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let base: URL
+        if let custom = environment[key], !custom.isEmpty {
+            base = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath, isDirectory: true)
+        } else {
+            base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(fallback, isDirectory: true)
         }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/share/opencode", isDirectory: true)
+        return base.appendingPathComponent("opencode", isDirectory: true)
+    }
+
+    static func dataDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        xdgDirectory("XDG_DATA_HOME", fallback: ".local/share", environment: environment)
+    }
+
+    static func stateDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        xdgDirectory("XDG_STATE_HOME", fallback: ".local/state", environment: environment)
     }
 
     static var databaseURL: URL { dataDirectory().appendingPathComponent("opencode.db") }
 
-    /// Where the plugin records which OpenCode server (by PID) runs each session.
-    static var serversDirectory: URL { permissionsDirectory.appendingPathComponent("servers", isDirectory: true) }
-
-    /// Where the OpenCode plugin leaves pending permission prompts.
+    /// Where the OpenCode plugin leaves pending prompts.
     static var permissionsDirectory: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport.appendingPathComponent("Cracked/opencode", isDirectory: true)
     }
+
+    /// Where the plugin records which OpenCode server (by PID) runs each session.
+    static var serversDirectory: URL { permissionsDirectory.appendingPathComponent("servers", isDirectory: true) }
 
     // MARK: - Processes
 
@@ -103,16 +133,6 @@ enum OpenCodeAgents {
     /// The OpenCode desktop app, which shows sessions run by the background service.
     static let desktopBundleID = "ai.opencode.desktop"
 
-    /// `$XDG_STATE_HOME/opencode`, or `~/.local/state/opencode`.
-    static func stateDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let custom = environment["XDG_STATE_HOME"], !custom.isEmpty {
-            return URL(fileURLWithPath: (custom as NSString).expandingTildeInPath, isDirectory: true)
-                .appendingPathComponent("opencode", isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/state/opencode", isDirectory: true)
-    }
-
     /// The background service's PID, from `service.json`.
     static func servicePID(stateDirectory: URL = stateDirectory()) -> Int32? {
         guard let data = try? Data(contentsOf: stateDirectory.appendingPathComponent("service.json")),
@@ -123,9 +143,9 @@ enum OpenCodeAgents {
     // MARK: - Mapping
 
     /// Maps a session onto Cracked's agent model. `process` is the terminal UI showing it,
-    /// if one was found; otherwise `host` is the app running its server (e.g. T3 Code), if
-    /// known. Working sessions are always listed. A finished one is only news (done or
-    /// error) where you can go and look at it: open in a terminal or an app. Idle ones are
+    /// if any; otherwise `host` is the app it can be looked at in (e.g. T3 Code), if any.
+    /// Working sessions are always listed. A finished one is only news (done or error)
+    /// where you can go and look at it: open in a terminal or an app. Idle ones are
     /// listed only while open in a terminal.
     static func session(from record: OpenCodeSessionRecord, permission: OpenCodePendingPermission?,
                         process: AgentProcess?, host: ProcessContext? = nil, now: Date) -> AgentSession? {
@@ -156,7 +176,7 @@ enum OpenCodeAgents {
             session.updatedAt = idleAt
             let open = process != nil || host?.terminalPID != nil
             if !seen && recent && open {
-                session.status = record.outcome == "failed" ? .error : .done
+                session.status = record.outcome == .failed ? .error : .done
                 if session.status == .error { session.message = "The last turn failed" }
                 return session
             }
@@ -165,15 +185,17 @@ enum OpenCodeAgents {
         return process == nil ? nil : session
     }
 
-    /// Pairs each session with the terminal UI showing it: the most recently updated
-    /// session in the same directory. Returns the processes left over (open, but with
-    /// no session yet).
-    static func match(records: [OpenCodeSessionRecord], processes: [AgentProcess])
+    /// Pairs sessions in `shared` servers with the terminal UIs that may be showing them:
+    /// the most recently updated session in the terminal's directory. Terminals in
+    /// `claimed` already show a session of their own. Returns the terminals left over
+    /// (open, but with no session yet).
+    static func match(records: [OpenCodeSessionRecord], processes: [AgentProcess], claimed: Set<Int32> = [])
         -> (byRecord: [String: AgentProcess], unmatched: [AgentProcess]) {
         var byRecord: [String: AgentProcess] = [:]
         var unmatched: [AgentProcess] = []
         // Newest processes first, so the newest terminal gets the newest session.
-        for process in processes.sorted(by: { ($0.startedAt ?? .distantPast) > ($1.startedAt ?? .distantPast) }) {
+        let free = processes.filter { !claimed.contains($0.pid) }
+        for process in free.sorted(by: { ($0.startedAt ?? .distantPast) > ($1.startedAt ?? .distantPast) }) {
             let candidate = records
                 .filter { $0.directory == process.cwd && byRecord[$0.id] == nil }
                 .max { $0.updatedAt < $1.updatedAt }
@@ -186,12 +208,34 @@ enum OpenCodeAgents {
         return (byRecord, unmatched)
     }
 
+    /// Every session worth listing, plus terminal UIs that have no session yet.
+    /// Sessions missing from `placements` count as `.shared(fallback: nil)`.
     static func sessions(records: [OpenCodeSessionRecord], permissions: [String: OpenCodePendingPermission],
-                         processes: [AgentProcess], hosts: [String: ProcessContext] = [:],
+                         processes: [AgentProcess], placements: [String: OpenCodePlacement] = [:],
                          now: Date) -> [AgentSession] {
-        let (byRecord, unmatched) = match(records: records, processes: processes)
-        let fromRecords = records.compactMap {
-            session(from: $0, permission: permissions[$0.id], process: byRecord[$0.id], host: hosts[$0.id], now: now)
+        func placement(_ record: OpenCodeSessionRecord) -> OpenCodePlacement {
+            placements[record.id] ?? .shared(fallback: nil)
+        }
+        var claimed: [String: AgentProcess] = [:]
+        for record in records {
+            if case .terminal(let process) = placement(record) { claimed[record.id] = process }
+        }
+        let shared = records.filter { if case .shared = placement($0) { true } else { false } }
+        let (matched, unmatched) = match(records: shared, processes: processes,
+                                         claimed: Set(claimed.values.map(\.pid)))
+
+        let fromRecords = records.compactMap { record -> AgentSession? in
+            var process: AgentProcess?
+            var host: ProcessContext?
+            switch placement(record) {
+            case .terminal(let terminal): process = terminal
+            case .app(let app): host = app
+            case .oneShot: break
+            case .shared(let fallback):
+                process = matched[record.id]
+                host = process == nil ? fallback : nil
+            }
+            return session(from: record, permission: permissions[record.id], process: process, host: host, now: now)
         }
         // A terminal UI with no session yet: open, nothing asked.
         let open = unmatched.compactMap { process -> AgentSession? in
@@ -202,43 +246,49 @@ enum OpenCodeAgents {
         return fromRecords + open
     }
 
-    // MARK: - Servers
+    // MARK: - Files the plugin writes
 
-    /// The OpenCode server (PID) running each session, as the plugin reported it.
-    /// Entries for servers that have quit are removed.
+    /// Decodes each JSON file in `directory`, removing those whose OpenCode server
+    /// (`pid`) has quit.
+    static func liveEntries<Entry: Decodable>(_ type: Entry.Type, in directory: URL, pid: (Entry) -> Int32?,
+                                              isAlive: (Int32) -> Bool) -> [Entry] {
+        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        else { return [] }
+        return files.filter { $0.pathExtension == "json" }.compactMap { file in
+            guard let data = try? Data(contentsOf: file),
+                  let entry = try? JSONDecoder().decode(Entry.self, from: data) else { return nil }
+            if let pid = pid(entry), !isAlive(pid) {
+                try? FileManager.default.removeItem(at: file)
+                return nil
+            }
+            return entry
+        }
+    }
+
+    /// The OpenCode server (PID) running each session.
     static func sessionServers(directory: URL = serversDirectory,
                                isAlive: (Int32) -> Bool = ProcessTree.isAlive) -> [String: Int32] {
         struct Entry: Decodable { let sessionID: String; let pid: Int32 }
-        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        else { return [:] }
-        var result: [String: Int32] = [:]
-        for file in files where file.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: file),
-                  let entry = try? JSONDecoder().decode(Entry.self, from: data) else { continue }
-            guard isAlive(entry.pid) else {
-                try? FileManager.default.removeItem(at: file)
-                continue
-            }
-            result[entry.sessionID] = entry.pid
-        }
-        return result
+        let entries = liveEntries(Entry.self, in: directory, pid: { $0.pid }, isAlive: isAlive)
+        return Dictionary(entries.map { ($0.sessionID, $0.pid) }, uniquingKeysWith: { _, last in last })
     }
 
-    // MARK: - Pending permissions
-
+    /// The newest pending prompt of each session (a session can have several at once).
     static func pendingPermissions(directory: URL = permissionsDirectory,
                                    isAlive: (Int32) -> Bool = ProcessTree.isAlive) -> [String: OpenCodePendingPermission] {
-        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        else { return [:] }
-        var result: [String: OpenCodePendingPermission] = [:]
-        for file in files where file.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: file),
-                  let pending = try? JSONDecoder().decode(OpenCodePendingPermission.self, from: data) else { continue }
-            if let pid = pending.pid, !isAlive(pid) {
-                try? FileManager.default.removeItem(at: file)
-                continue
-            }
-            result[pending.sessionID] = pending
+        let entries = liveEntries(OpenCodePendingPermission.self, in: directory, pid: { $0.pid }, isAlive: isAlive)
+        return Dictionary(entries.map { ($0.sessionID, $0) }, uniquingKeysWith: { $0.askedAt >= $1.askedAt ? $0 : $1 })
+    }
+
+    /// Re-keys entries for subagent (child) sessions onto their top-level session, which
+    /// is the one listed. `root` maps a session to its top-level session.
+    static func onRoots<Value>(_ entries: [String: Value], root: (String) -> String,
+                               newer: (Value, Value) -> Bool) -> [String: Value] {
+        var result: [String: Value] = [:]
+        for (id, value) in entries {
+            let key = root(id)
+            if let existing = result[key], !newer(value, existing) { continue }
+            result[key] = value
         }
         return result
     }
@@ -254,6 +304,10 @@ final class OpenCodeAgentReader: @unchecked Sendable {
     private var queue: DatabaseQueue?
     private var lastModified: Date?
     private var cached: [OpenCodeSessionRecord] = []
+    /// Subagent session → its parent. Never changes once a session exists.
+    private var parents: [String: String?] = [:]
+    /// The app hosting each server, by server PID. A server's parents never change.
+    private var hostCache: [Int32: ProcessContext] = [:]
     private let lock = NSLock()
 
     init(databaseURL: URL = OpenCodeAgents.databaseURL) {
@@ -269,6 +323,16 @@ final class OpenCodeAgentReader: @unchecked Sendable {
         return dates.max()
     }
 
+    private func openQueue() throws -> DatabaseQueue {
+        if let queue { return queue }
+        var config = Configuration()
+        config.readonly = true
+        config.busyMode = .timeout(0.2)
+        let queue = try DatabaseQueue(path: databaseURL.path, configuration: config)
+        self.queue = queue
+        return queue
+    }
+
     func records(now: Date = Date()) -> [OpenCodeSessionRecord] {
         lock.lock()
         defer { lock.unlock() }
@@ -279,13 +343,7 @@ final class OpenCodeAgentReader: @unchecked Sendable {
         }
         if modified == lastModified { return cached }
         do {
-            if queue == nil {
-                var config = Configuration()
-                config.readonly = true
-                config.busyMode = .timeout(0.2)
-                queue = try DatabaseQueue(path: databaseURL.path, configuration: config)
-            }
-            cached = try queue!.read { db in
+            cached = try openQueue().read { db in
                 try Self.fetch(db, since: now.addingTimeInterval(-Self.lookback))
             }
             lastModified = modified
@@ -312,51 +370,99 @@ final class OpenCodeAgentReader: @unchecked Sendable {
                 createdAt: date(row["time_created"]) ?? .distantPast,
                 updatedAt: date(row["time_updated"]) ?? .distantPast,
                 busyAt: date(row["time_busy"]), idleAt: date(row["time_idle"]),
-                outcome: row["idle_outcome"], viewedAt: date(row["time_viewed"])
+                outcome: (row["idle_outcome"] as String?).flatMap(OpenCodeSessionRecord.Outcome.init(rawValue:)),
+                viewedAt: date(row["time_viewed"])
             )
         }
     }
 
-    /// The app hosting each server, by server PID. A server's parents never change.
-    private var hostCache: [Int32: ProcessContext] = [:]
+    /// The top-level session of each of `ids`, following `parent_id` (subagents can
+    /// nest). Only sessions the plugin wrote about are looked up, and each only once.
+    /// Call with the lock held.
+    private func roots(of ids: Set<String>) -> [String: String] {
+        let unknown = ids.filter { parents[$0] == nil }
+        if !unknown.isEmpty, let queue = try? openQueue() {
+            var pending = Array(unknown)
+            for _ in 0..<8 where !pending.isEmpty {
+                let found = (try? queue.read { db in
+                    try Row.fetchAll(db, sql: "SELECT id, parent_id FROM session_v2 WHERE id IN (\(pending.map { _ in "?" }.joined(separator: ",")))",
+                                     arguments: StatementArguments(pending))
+                }) ?? []
+                for row in found {
+                    let parent: String? = row["parent_id"]
+                    parents[row["id"] as String] = .some(parent)
+                }
+                pending = found.compactMap { $0["parent_id"] as String? }.filter { parents[$0] == nil }
+            }
+        }
+        if parents.count > 5000 { parents.removeAll() }
+        var result: [String: String] = [:]
+        for id in ids {
+            var current = id
+            for _ in 0..<8 {
+                guard let parent = parents[current] ?? nil else { break }
+                current = parent
+            }
+            result[id] = current
+        }
+        return result
+    }
 
     func sessions(processes: [AgentProcess], now: Date = Date()) -> [AgentSession] {
         let records = records(now: now)
-        let servers = OpenCodeAgents.sessionServers()
+        let rawServers = OpenCodeAgents.sessionServers()
+        let rawPermissions = OpenCodeAgents.pendingPermissions()
         let servicePID = OpenCodeAgents.servicePID()
         let desktop = NSRunningApplication.runningApplications(withBundleIdentifier: OpenCodeAgents.desktopBundleID).first
+        let desktopHost = desktop.map {
+            ProcessContext(claudePID: nil, terminalPID: $0.processIdentifier, terminalBundlePath: $0.bundleURL?.path)
+        }
         let viewed = Set(records.filter { $0.viewedAt != nil }.map(\.id))
-        var hosts: [String: ProcessContext] = [:]
+        let terminals = Dictionary(processes.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
+
         lock.lock()
-        hostCache = hostCache.filter { Set(servers.values).contains($0.key) }
+        let rootOf = roots(of: Set(rawServers.keys).union(rawPermissions.keys))
+        // Prompts and servers of subagents belong to the session that's listed.
+        let permissions = OpenCodeAgents.onRoots(rawPermissions, root: { rootOf[$0] ?? $0 },
+                                                 newer: { $0.askedAt > $1.askedAt })
+        // A subagent normally runs in its parent's server; the parent's own record wins.
+        var servers: [String: Int32] = [:]
+        for (id, pid) in rawServers {
+            let root = rootOf[id] ?? id
+            if root == id || servers[root] == nil { servers[root] = pid }
+        }
+        let live = Set(servers.values)
+        hostCache = hostCache.filter { live.contains($0.key) }
+        var placements: [String: OpenCodePlacement] = [:]
         for (sessionID, pid) in servers {
             if pid == servicePID {
                 // The background service has no app of its own. Its sessions belong to the
                 // desktop app if they've been opened there (the desktop app records views;
                 // `opencode run` and other clients don't).
-                if let desktop, viewed.contains(sessionID) {
-                    hosts[sessionID] = ProcessContext(claudePID: nil, terminalPID: desktop.processIdentifier,
-                                                      terminalBundlePath: desktop.bundleURL?.path)
-                }
+                placements[sessionID] = .shared(fallback: viewed.contains(sessionID) ? desktopHost : nil)
                 continue
             }
-            let host = hostCache[pid] ?? Self.host(ofServer: pid)
-            hostCache[pid] = host
-            if host.terminalPID != nil { hosts[sessionID] = host }
+            placements[sessionID] = Self.placement(ofServer: pid, terminals: terminals, hostCache: &hostCache)
         }
         lock.unlock()
-        return OpenCodeAgents.sessions(records: records, permissions: OpenCodeAgents.pendingPermissions(),
-                                       processes: processes, hosts: hosts, now: now)
+        return OpenCodeAgents.sessions(records: records, permissions: permissions, processes: processes,
+                                       placements: placements, now: now)
     }
 
-    /// The app a server runs in (e.g. T3 Code), or none for a one-shot `opencode run`
-    /// (its own private server, or the command that started it).
-    static func host(ofServer pid: Int32) -> ProcessContext {
-        for candidate in [pid, ProcessTree.parent(of: pid)].compactMap({ $0 }) {
+    /// Where a (non-service) server's sessions can be looked at: the terminal UI it runs
+    /// under (`--standalone`), nowhere for a one-shot `opencode run`, else the app it runs
+    /// in (e.g. T3 Code).
+    static func placement(ofServer pid: Int32, terminals: [Int32: AgentProcess],
+                          hostCache: inout [Int32: ProcessContext]) -> OpenCodePlacement {
+        let lineage = [pid] + ProcessTree.ancestors(of: pid)
+        if let terminal = lineage.lazy.compactMap({ terminals[$0] }).first { return .terminal(terminal) }
+        for candidate in lineage.prefix(2) {
             if let arguments = ProcessTree.arguments(of: candidate), OpenCodeAgents.isOneShot(arguments: arguments) {
-                return ProcessContext()
+                return .oneShot
             }
         }
-        return ProcessTree.context(startingAt: pid)
+        let host = hostCache[pid] ?? ProcessTree.context(startingAt: pid)
+        hostCache[pid] = host
+        return host.terminalPID != nil ? .app(host) : .shared(fallback: nil)
     }
 }
