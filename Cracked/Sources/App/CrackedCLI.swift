@@ -4,7 +4,7 @@ import Foundation
 /// Claude Code hooks, the MCP server and humans in a terminal.
 enum CrackedCLI {
     #if DEBUG
-    static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help", "snapshot"]
+    static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help", "snapshot", "rex-focus"]
     #else
     static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help"]
     #endif
@@ -49,6 +49,14 @@ enum CrackedCLI {
             }
 
         #if DEBUG
+        case "rex-focus":
+            // Focuses the Rex block running a PID, as clicking its agent does.
+            guard let pid = arguments.first.flatMap(Int32.init) else { return 1 }
+            let found = Rex.focus(pid: pid)
+            print(found ? "focused" : "block not found")
+            Thread.sleep(forTimeInterval: 0.3)
+            return found ? 0 : 1
+
         case "snapshot":
             return MainActor.assumeIsolated {
                 DebugSnapshots.run(outputDirectory: arguments.first ?? FileManager.default.currentDirectoryPath)

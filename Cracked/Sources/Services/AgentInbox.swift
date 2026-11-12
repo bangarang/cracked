@@ -306,6 +306,14 @@ enum ProcessTree {
                 context.terminalBundlePath = app.bundleURL?.path
                 break
             }
+            // Rex's terminals run in Rex Server, a background process; the Rex app shows them.
+            if Rex.isServer(path: path(of: candidate)) {
+                if let app = Rex.app {
+                    context.terminalPID = app.processIdentifier
+                    context.terminalBundlePath = app.bundleURL?.path
+                }
+                break
+            }
             current = parent(of: candidate)
             hops += 1
         }

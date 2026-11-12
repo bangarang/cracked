@@ -290,6 +290,12 @@ enum AgentNavigator {
             NSWorkspace.shared.open(url)
             return
         }
+        if let bundlePath = session.terminalBundlePath, Bundle(path: bundlePath)?.bundleIdentifier == Rex.bundleID,
+           let pid = session.claudePID {
+            // The `rex` CLI finds and focuses the session's block; it takes a moment.
+            Task.detached { Rex.focus(pid: pid) }
+            return
+        }
         if let tty = session.tty, let bundlePath = session.terminalBundlePath,
            let bundleID = Bundle(path: bundlePath)?.bundleIdentifier,
            let script = focusScript(bundleID: bundleID, tty: tty) {
