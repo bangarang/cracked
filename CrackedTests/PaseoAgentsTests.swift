@@ -148,11 +148,16 @@ struct PaseoAgentsTests {
             proc(23, 12, "<defunct>"),
             proc(24, 12, "/bin/zsh"),
             proc(30, 5, "claude"),
+            proc(40, 5, "/opt/homebrew/bin/opencode"),
+            proc(41, 1, "/opt/homebrew/bin/opencode"),
         ]
-        let tracked = Dictionary(uniqueKeysWithValues: MenuBarViewModel.computeTrackedApps(from: processes).map { ($0.name, $0) })
+        let argv: [Int32: [String]] = [40: ["opencode", "--continue"], 41: ["opencode", "serve", "--port=4096"]]
+        let tracked = Dictionary(uniqueKeysWithValues: MenuBarViewModel.computeTrackedApps(
+            from: processes, arguments: { argv[$0] }).map { ($0.name, $0) })
         #expect(tracked["Paseo"]?.count == 3)
         #expect(tracked["Paseo"]?.label == "agents")
         #expect(tracked["Claude Code"]?.count == 1, "Paseo's claude processes aren't terminal sessions")
+        #expect(tracked["OpenCode"]?.count == 1, "Paseo's opencode and OpenCode servers aren't sessions")
     }
 
     @Test("PASEO_HOME overrides ~/.paseo")

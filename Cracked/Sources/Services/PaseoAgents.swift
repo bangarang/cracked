@@ -165,8 +165,9 @@ final class PaseoAgentReader {
     }
 }
 
-/// Every agent Cracked knows about: Paseo agents, Claude Code / OpenCode sessions
-/// running in terminals, and sessions reporting through Cracked's hooks. Each agent
+/// Every agent Cracked knows about: Paseo agents, Claude Code sessions running in
+/// terminals, OpenCode sessions (from its database), and sessions reporting through
+/// Cracked's Claude Code hooks. Each agent
 /// is listed once: a session Paseo runs as the Paseo agent (that's where you answer
 /// it), and a terminal session with Claude Code's own live status, keeping the
 /// hook's more specific "needs input" message when there is one.
@@ -199,14 +200,17 @@ enum AgentFeed {
     }
 
     /// Loads every agent, with the transcript heuristic applied to hook sessions.
-    static func load(paseo: PaseoAgentReader, now: Date = Date()) -> [AgentSession] {
+    static func load(paseo: PaseoAgentReader, openCode: OpenCodeAgentReader, now: Date = Date()) -> [AgentSession] {
         let hooks = AgentInbox.loadAll(now: now).map { session -> AgentSession in
             var session = session
             session.status = session.effectiveStatus(transcriptModifiedAt: AgentInbox.transcriptModifiedAt(session))
             return session
         }
         let (paseoSessions, ids) = paseo.sessions(now: now)
+        let processes = TerminalAgents.processes()
+        let terminals = TerminalAgents.scan(processes: processes, now: now)
+            + openCode.sessions(processes: processes.filter { $0.kind == .opencode }, now: now)
         return merge(hookSessions: hooks, paseoSessions: paseoSessions, paseoProviderSessionIDs: ids,
-                     terminalSessions: TerminalAgents.scan(now: now))
+                     terminalSessions: terminals)
     }
 }

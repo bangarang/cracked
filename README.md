@@ -25,7 +25,7 @@
 > 2. *Drums:* the snap of a perfectly hit snare.
 > 3. *Slang:* absurdly, unreasonably impressive. As in *"262 browser renderer processes? That's cracked."*
 
-Your Mac is probably all three. Cracked sits in the menu bar and lets you know. It also keeps tabs on your coding agents, in Claude Code and Paseo.
+Your Mac is probably all three. Cracked sits in the menu bar and lets you know. It also keeps tabs on your coding agents, in Claude Code, OpenCode and Paseo.
 
 ## Why
 
@@ -59,6 +59,7 @@ Cracked counts what you're actually juggling and logs every **PR**:
 - **Cursor windows**
 - **Paseo agents**
 - **Claude Code sessions** (outside Paseo)
+- **OpenCode sessions** (terminal UIs, outside Paseo)
 - **Warp tabs**
 
 Every app gets a history chart and a PR badge with the date you set it. Beat your record of 161 tabs and you have a new PR. We're not judging. (We're judging a little.)
@@ -70,21 +71,27 @@ Models loaded in Ollama take tens of gigabytes and barely show up in process sta
 Running seven Claude Code sessions across five terminals? Cracked keeps track of them for you.
 
 - **Agent inbox:** every session shows up under **Agents** as *working*, *done* or *needs input*, with the permission it's waiting on. Sessions that are blocked or finished put a count next to the menu bar icon. Click a session to bring its terminal to the front.
-- **Terminal sessions, no setup:** Claude Code and OpenCode running in a terminal outside Paseo show up too. Claude Code sessions get their live status (*working*, *needs input*, *done*) and the same title as their terminal tab, read from the files Claude Code keeps in `~/.claude`. Click one to jump to its exact tab in Ghostty, iTerm2 or Terminal (macOS asks once to let Cracked control it). Other terminals are brought to the front.
+- **Claude Code, no setup:** sessions running in a terminal outside Paseo get their live status (*working*, *needs input*, *done*) and the same title as their terminal tab, read from the files Claude Code keeps in `~/.claude`.
+- **OpenCode, no setup:** OpenCode v2 runs sessions in a server (its background service, the desktop app, or `--standalone`), and they all write to one database. Cracked reads it (`~/.local/share/opencode/opencode.db`, read-only) for each session's title and whether it's *working*, *done* or *errored*, wherever it runs. A session open in a terminal is matched to its tab; OpenCode servers are never listed as agents.
+- Click a terminal session to jump to its exact tab in Ghostty, iTerm2 or Terminal (macOS asks once to let Cracked control it). Other terminals are brought to the front.
 - **Needs You:** agents that are blocked, errored or finished get their own section at the top of the menu.
 - **Paseo agents, no setup:** if you use [Paseo](https://paseo.sh), its agents (Claude, OpenCode and the rest) show up under **Agents** too, with their titles, including when one is waiting for permission or has hit an error. Cracked reads Paseo's local state from `~/.paseo` (or `$PASEO_HOME`). Clicking one opens it in Paseo, and a Claude Code session that Paseo is running is listed only once.
 - **Optional notifications** when an agent finishes or gets stuck. Click one to jump straight to that session.
 - **MCP server:** agents can call `system_status`, `list_agent_sessions` and `get_records`, and, with your approval, `restart_app` or `snooze_app`. Restarts only work on apps already listed under Worth a Restart.
 - **Load warnings:** when your Mac is struggling, new sessions are told so automatically ("load 46 on 16 cores · Xcode 140%"), so agents run builds one at a time instead of piling on.
 
-Connect it from **Settings → Claude Code**, or from a terminal:
+Connect it from **Settings → Claude Code** and **Settings → OpenCode**, or from a terminal:
 
 ```bash
-/Applications/Cracked.app/Contents/MacOS/Cracked setup     # hooks + MCP server
+/Applications/Cracked.app/Contents/MacOS/Cracked setup     # every agent it finds; or: setup claude | setup opencode
 /Applications/Cracked.app/Contents/MacOS/Cracked status    # what's going on right now
 ```
 
-Setup adds hooks to `~/.claude/settings.json` (it backs up the original first and leaves your other settings alone) and registers the MCP server with `claude mcp add`. `Cracked uninstall` removes both.
+For Claude Code, setup adds hooks to `~/.claude/settings.json` (it backs up the original first and leaves your other settings alone) and registers the MCP server with `claude mcp add`.
+
+For OpenCode, setup adds `cracked` under `mcp.servers` in `~/.config/opencode/opencode.json` (backed up first) and installs a small plugin, `~/.config/opencode/plugins/cracked.js`, that reports permission prompts (so they reach **Needs You**) and adds the load warning to new sessions. Restart OpenCode's service to load them: `opencode service restart`.
+
+`Cracked uninstall` removes all of it.
 
 ### 🏆 All-Time Records & the Hall of Shame
 The **Records & Stats** window brings it all together:
@@ -99,7 +106,7 @@ Set the CPU alert threshold, when to suggest a restart (days running and GB used
 
 ## Privacy
 
-Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
+Cracked is **100% local**. No accounts, no analytics, and nothing leaves your Mac: the only network request it makes is to Ollama's API on your own machine, and only while Ollama is running. It reads OpenCode's session database read-only and never changes it. Snapshots live in a SQLite database on your Mac and are automatically downsampled: per-minute for 24 hours, then per-hour for 30 days, then daily. A year of history takes up almost nothing.
 
 ## Install
 
@@ -163,8 +170,9 @@ No Xcode? `scripts/build-dmg.sh` builds the app and a DMG with just the Command 
 - **`DatabaseManager`** runs GRDB migrations, stores snapshots and handles downsampling
 - **`AgentInbox`** turns Claude Code hook events into session state, stored as one small JSON file per session
 - **`TerminalAgents`** finds Claude Code and OpenCode processes outside Paseo, reads Claude Code's own session status, and focuses the right terminal tab
+- **`OpenCodeAgents`** reads OpenCode's session database and the plugin's pending permission prompts, and matches sessions to their terminal tabs
 - **`LocalModels`** reads Ollama's loaded models and macOS memory pressure
-- **`PaseoAgents`** maps the Paseo daemon's agent records (`~/.paseo/agents/*/*.json`) onto the same model, and **`AgentFeed`** merges all three sources
+- **`PaseoAgents`** maps the Paseo daemon's agent records (`~/.paseo/agents/*/*.json`) onto the same model, and **`AgentFeed`** merges every source
 - **`MCPServer`** is a small hand-written MCP server over stdio, with no extra dependencies. It runs from the same binary: `Cracked mcp`
 
 The project is generated from [`project.yml`](project.yml). Run the tests with:

@@ -58,7 +58,7 @@ struct TerminalAgentsTests {
         #expect(named.title == "Fix the login bug")
     }
 
-    @Test("OpenCode doesn't report its state, so it shows as running")
+    @Test("An OpenCode process alone has no state; OpenCodeAgents adds it from the database")
     func opencode() throws {
         let session = try #require(TerminalAgents.session(for: process(.opencode, pid: 14453), claude: nil, now: now))
         #expect(session.status == .running)

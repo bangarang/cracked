@@ -40,6 +40,7 @@ final class MenuBarViewModel: ObservableObject {
     private var knownAgentStatuses: [String: AgentSession.Status]?
     private var agentObserver: NSObjectProtocol?
     private let paseoReader = PaseoAgentReader()
+    private let openCodeReader = OpenCodeAgentReader()
     private var lastOllamaPoll = Date.distantPast
     private var ollamaPollInFlight = false
 
@@ -180,7 +181,10 @@ final class MenuBarViewModel: ObservableObject {
         )
     }
 
-    nonisolated static func computeTrackedApps(from processes: [ProcessSnapshot]) -> [TrackedAppCount] {
+    nonisolated static func computeTrackedApps(
+        from processes: [ProcessSnapshot],
+        arguments: (Int32) -> [String]? = { ProcessTree.arguments(of: $0) }
+    ) -> [TrackedAppCount] {
         var results: [TrackedAppCount] = []
 
         // Browser tabs: count "Helper (Renderer)" processes per browser
@@ -221,6 +225,16 @@ final class MenuBarViewModel: ObservableObject {
         }
         if claudeCount > 0 {
             results.append(TrackedAppCount(name: "Claude Code", count: claudeCount, label: "sessions", appBundlePath: "/Applications/Claude.app"))
+        }
+
+        // OpenCode sessions outside Paseo: `opencode` terminal UIs, not its servers
+        let openCodeCount = processes.count { p in
+            let n = p.name
+            guard (n == "opencode" || n.hasSuffix("/opencode")), !paseoDaemonPIDs.contains(p.ppid) else { return false }
+            return arguments(p.pid).map(OpenCodeAgents.isSessionProcess(arguments:)) ?? true
+        }
+        if openCodeCount > 0 {
+            results.append(TrackedAppCount(name: "OpenCode", count: openCodeCount, label: "sessions", appBundlePath: "/Applications/OpenCode.app"))
         }
 
         // Warp tabs: count login shell processes whose parent is a Warp process
@@ -292,7 +306,7 @@ final class MenuBarViewModel: ObservableObject {
     /// Re-reads Paseo agents, terminal sessions and hook sessions, and notifies
     /// (if enabled) when one newly finishes, errors or needs input.
     func refreshAgents() {
-        let sessions = AgentFeed.load(paseo: paseoReader)
+        let sessions = AgentFeed.load(paseo: paseoReader, openCode: openCodeReader)
 
         if let known = knownAgentStatuses, agentNotifications {
             for session in sessions where session.isWaiting && known[session.sessionID] != session.status {

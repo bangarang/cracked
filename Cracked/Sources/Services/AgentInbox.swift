@@ -3,8 +3,9 @@ import AppKit
 import Darwin
 
 /// One coding agent: a Claude Code session reported by hooks, a Paseo agent read
-/// from the Paseo daemon's state (see `PaseoAgents`), or a Claude Code / OpenCode
-/// process found running in a terminal (see `TerminalAgents`).
+/// from the Paseo daemon's state (see `PaseoAgents`), a Claude Code process found
+/// running in a terminal (see `TerminalAgents`), or an OpenCode session read from
+/// OpenCode's database (see `OpenCodeAgents`).
 struct AgentSession: Codable, Identifiable, Equatable, Sendable {
     enum Source: String, Codable, Sendable {
         /// Reported by Cracked's Claude Code hooks.
@@ -25,7 +26,7 @@ struct AgentSession: Codable, Identifiable, Equatable, Sendable {
         case done
         /// The agent hit an error (Paseo only).
         case error
-        /// Running, but it doesn't report what it's doing (OpenCode in a terminal).
+        /// Running, but it doesn't report what it's doing (an older Claude Code without session files).
         case running
     }
 
