@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import GRDB
 
 /// One row of OpenCode's `session_v2` table (only the columns Cracked uses).
@@ -73,26 +74,59 @@ enum OpenCodeAgents {
 
     // MARK: - Processes
 
-    /// `opencode` subcommands that don't run a session of their own (servers and tools).
-    /// The bare command (the terminal UI), `mini` and `run` do.
+    /// `opencode` subcommands that aren't a session someone has open: servers, tools,
+    /// and `run`, a one-shot prompt (like `claude -p`). The bare command (the terminal
+    /// UI) and `mini` are.
     static let nonSessionSubcommands: Set<String> = [
-        "serve", "service", "web", "acp", "api", "mcp", "debug", "auth", "models", "stats",
+        "run", "serve", "service", "web", "acp", "api", "mcp", "debug", "auth", "models", "stats",
         "session", "plugin", "upgrade", "update", "uninstall", "export", "import", "github", "pr",
     ]
 
     /// Whether an `opencode` process with these arguments (argv, including argv[0]) is a
     /// session someone is using, rather than a server or a one-off tool command.
     static func isSessionProcess(arguments: [String]) -> Bool {
-        guard let first = arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) else { return true }
+        guard let first = subcommand(arguments) else { return true }
         return !nonSessionSubcommands.contains(first)
+    }
+
+    static func subcommand(_ arguments: [String]) -> String? {
+        arguments.dropFirst().first(where: { !$0.hasPrefix("-") })
+    }
+
+    /// Whether this is an `opencode run` process, whose session isn't open anywhere.
+    static func isOneShot(arguments: [String]) -> Bool {
+        guard let program = arguments.first.map({ ($0 as NSString).lastPathComponent }),
+              program.hasPrefix("opencode") else { return false }
+        return subcommand(arguments) == "run"
+    }
+
+    /// The OpenCode desktop app, which shows sessions run by the background service.
+    static let desktopBundleID = "ai.opencode.desktop"
+
+    /// `$XDG_STATE_HOME/opencode`, or `~/.local/state/opencode`.
+    static func stateDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        if let custom = environment["XDG_STATE_HOME"], !custom.isEmpty {
+            return URL(fileURLWithPath: (custom as NSString).expandingTildeInPath, isDirectory: true)
+                .appendingPathComponent("opencode", isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/state/opencode", isDirectory: true)
+    }
+
+    /// The background service's PID, from `service.json`.
+    static func servicePID(stateDirectory: URL = stateDirectory()) -> Int32? {
+        guard let data = try? Data(contentsOf: stateDirectory.appendingPathComponent("service.json")),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return (json["pid"] as? NSNumber)?.int32Value
     }
 
     // MARK: - Mapping
 
     /// Maps a session onto Cracked's agent model. `process` is the terminal UI showing it,
     /// if one was found; otherwise `host` is the app running its server (e.g. T3 Code), if
-    /// known. Returns nil for sessions that aren't worth listing: idle, seen or long
-    /// finished, and not open in a terminal.
+    /// known. Working sessions are always listed. A finished one is only news (done or
+    /// error) where you can go and look at it: open in a terminal or an app. Idle ones are
+    /// listed only while open in a terminal.
     static func session(from record: OpenCodeSessionRecord, permission: OpenCodePendingPermission?,
                         process: AgentProcess?, host: ProcessContext? = nil, now: Date) -> AgentSession? {
         var session = AgentSession(
@@ -120,7 +154,8 @@ enum OpenCodeAgents {
             let seen = record.viewedAt.map { $0 >= idleAt } ?? false
             let recent = now.timeIntervalSince(idleAt) < recentlyFinishedWindow
             session.updatedAt = idleAt
-            if !seen && recent {
+            let open = process != nil || host?.terminalPID != nil
+            if !seen && recent && open {
                 session.status = record.outcome == "failed" ? .error : .done
                 if session.status == .error { session.message = "The last turn failed" }
                 return session
@@ -286,17 +321,42 @@ final class OpenCodeAgentReader: @unchecked Sendable {
     private var hostCache: [Int32: ProcessContext] = [:]
 
     func sessions(processes: [AgentProcess], now: Date = Date()) -> [AgentSession] {
+        let records = records(now: now)
         let servers = OpenCodeAgents.sessionServers()
+        let servicePID = OpenCodeAgents.servicePID()
+        let desktop = NSRunningApplication.runningApplications(withBundleIdentifier: OpenCodeAgents.desktopBundleID).first
+        let viewed = Set(records.filter { $0.viewedAt != nil }.map(\.id))
         var hosts: [String: ProcessContext] = [:]
         lock.lock()
         hostCache = hostCache.filter { Set(servers.values).contains($0.key) }
         for (sessionID, pid) in servers {
-            let host = hostCache[pid] ?? ProcessTree.context(startingAt: pid)
+            if pid == servicePID {
+                // The background service has no app of its own. Its sessions belong to the
+                // desktop app if they've been opened there (the desktop app records views;
+                // `opencode run` and other clients don't).
+                if let desktop, viewed.contains(sessionID) {
+                    hosts[sessionID] = ProcessContext(claudePID: nil, terminalPID: desktop.processIdentifier,
+                                                      terminalBundlePath: desktop.bundleURL?.path)
+                }
+                continue
+            }
+            let host = hostCache[pid] ?? Self.host(ofServer: pid)
             hostCache[pid] = host
             if host.terminalPID != nil { hosts[sessionID] = host }
         }
         lock.unlock()
-        return OpenCodeAgents.sessions(records: records(now: now), permissions: OpenCodeAgents.pendingPermissions(),
+        return OpenCodeAgents.sessions(records: records, permissions: OpenCodeAgents.pendingPermissions(),
                                        processes: processes, hosts: hosts, now: now)
+    }
+
+    /// The app a server runs in (e.g. T3 Code), or none for a one-shot `opencode run`
+    /// (its own private server, or the command that started it).
+    static func host(ofServer pid: Int32) -> ProcessContext {
+        for candidate in [pid, ProcessTree.parent(of: pid)].compactMap({ $0 }) {
+            if let arguments = ProcessTree.arguments(of: candidate), OpenCodeAgents.isOneShot(arguments: arguments) {
+                return ProcessContext()
+            }
+        }
+        return ProcessTree.context(startingAt: pid)
     }
 }

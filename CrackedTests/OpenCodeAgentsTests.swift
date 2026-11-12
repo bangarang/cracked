@@ -23,17 +23,21 @@ struct OpenCodeAgentsTests {
                      terminalPID: 93437, terminalBundlePath: "/Applications/Ghostty.app")
     }
 
+    let app = ProcessContext(claudePID: nil, terminalPID: 96995, terminalBundlePath: "/Applications/T3 Code.app")
+
     func status(_ record: OpenCodeSessionRecord, permission: OpenCodePendingPermission? = nil,
-                process: AgentProcess? = nil) -> AgentSession.Status? {
-        OpenCodeAgents.session(from: record, permission: permission, process: process, now: now)?.status
+                process: AgentProcess? = nil, host: ProcessContext? = nil) -> AgentSession.Status? {
+        OpenCodeAgents.session(from: record, permission: permission, process: process, host: host, now: now)?.status
     }
 
     @Test("Busy, finished, failed and seen sessions map onto Cracked's states")
     func states() {
         #expect(status(record(busy: -30, idle: -600)) == .working, "Busy since its last idle")
         #expect(status(record(busy: -30)) == .working, "Busy and never idle yet")
-        #expect(status(record(busy: -600, idle: -30, outcome: "succeeded")) == .done)
-        #expect(status(record(busy: -600, idle: -30, outcome: "failed")) == .error)
+        #expect(status(record(busy: -600, idle: -30, outcome: "succeeded"), process: tui()) == .done)
+        #expect(status(record(busy: -600, idle: -30, outcome: "failed"), host: app) == .error)
+        #expect(status(record(busy: -600, idle: -30, outcome: "succeeded")) == nil,
+                "Finished, but not open anywhere you could look at it (e.g. `opencode run`)")
         #expect(status(record(busy: -600, idle: -30, outcome: "succeeded", viewed: -10)) == nil,
                 "Seen since it finished, and not open in a terminal")
         #expect(status(record(busy: -600, idle: -30, outcome: "succeeded", viewed: -10), process: tui()) == .ready)
@@ -53,7 +57,7 @@ struct OpenCodeAgentsTests {
         #expect(session.message == "Waiting for permission: bash git push")
         #expect(session.isWaiting)
 
-        #expect(status(record(busy: -30, idle: -10, outcome: "succeeded"), permission: pending) == .done,
+        #expect(status(record(busy: -30, idle: -10, outcome: "succeeded"), permission: pending, host: app) == .done,
                 "Answered and finished")
         let older = OpenCodePendingPermission(sessionID: "ses_a", message: nil,
                                               askedAt: (now.timeIntervalSince1970 - 100) * 1000, pid: nil)
@@ -97,7 +101,10 @@ struct OpenCodeAgentsTests {
         #expect(OpenCodeAgents.isSessionProcess(arguments: ["opencode"]))
         #expect(OpenCodeAgents.isSessionProcess(arguments: ["opencode", "--continue"]))
         #expect(OpenCodeAgents.isSessionProcess(arguments: ["opencode", "/Users/me/app"]))
-        #expect(OpenCodeAgents.isSessionProcess(arguments: ["opencode", "run", "fix it"]))
+        #expect(!OpenCodeAgents.isSessionProcess(arguments: ["opencode", "run", "fix it"]), "One-shot, like claude -p")
+        #expect(OpenCodeAgents.isOneShot(arguments: ["/usr/local/bin/opencode.exe", "run", "--standalone", "hi"]))
+        #expect(!OpenCodeAgents.isOneShot(arguments: ["opencode", "serve"]))
+        #expect(!OpenCodeAgents.isOneShot(arguments: ["/bin/zsh", "run"]))
         #expect(!OpenCodeAgents.isSessionProcess(arguments: ["opencode", "serve", "--port=50494"]))
         #expect(!OpenCodeAgents.isSessionProcess(arguments: ["opencode", "acp"]))
         #expect(!OpenCodeAgents.isSessionProcess(arguments: ["opencode", "mcp", "list"]))
