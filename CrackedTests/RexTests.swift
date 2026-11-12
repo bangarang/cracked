@@ -34,6 +34,15 @@ struct RexTests {
                 "The foreground process alone is enough")
     }
 
+    @Test("Shows a session by its ID, matching AppleScript's host-prefixed IDs")
+    func showScript() {
+        let script = Rex.showScript(session: "session:01a1a85b-4bca-7249-b87e-fda05122e4bf")
+        #expect(script?.contains(#"show (first session whose id ends with "/session:01a1a85b-4bca-7249-b87e-fda05122e4bf")"#) == true)
+        #expect(script?.contains(#"application id "com.superlogical.rex""#) == true)
+        #expect(Rex.showScript(session: #"x" & do shell script "evil"#) == nil, "Never builds a script from odd input")
+        #expect(Rex.showScript(session: "") == nil)
+    }
+
     @Test("The CLI sits next to the server's executable")
     func cli() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

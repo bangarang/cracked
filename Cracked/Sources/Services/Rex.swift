@@ -39,7 +39,7 @@ enum Rex {
         }?.id
     }
 
-    /// Focuses the block running `pid` and brings Rex to the front. Blocking: it runs
+    /// Focuses the block running `pid`, shows its session and brings Rex to the front. Blocking: it runs
     /// the `rex` CLI a few times, so call it off the main thread. Returns false when the
     /// block couldn't be found, after still bringing Rex to the front.
     @discardableResult
@@ -52,12 +52,36 @@ enum Rex {
             activate()
             return false
         }
-        let found = blocks(cli: cli).flatMap { block(containing: lineage, in: $0) }
+        let all = blocks(cli: cli) ?? []
+        let found = block(containing: lineage, in: all.map { ($0.id, $0.processes) })
+            .flatMap { id in all.first { $0.id == id } }
         if let found {
-            _ = run(cli, ["focus", found, "--autostart=false"])
+            // Focus the block within its session, then show that session (it may not be the
+            // one on screen). Rex applies `show` asynchronously at the session's focused
+            // block, so showing first could land after, and undo, the focus.
+            _ = run(cli, ["focus", found.id, "--autostart=false"])
+            // `show` also brings Rex to the front. Activating the app as well would raise
+            // whichever window macOS last had in front, undoing the focus.
+            if show(session: found.session) { return true }
         }
         activate()
         return found != nil
+    }
+
+    /// AppleScript that shows a Rex session. Rex's AppleScript IDs are
+    /// `<host>/<session id>`; the CLI reports the session ID alone.
+    static func showScript(session: String) -> String? {
+        guard !session.isEmpty, session.allSatisfy({ $0.isLetter || $0.isNumber || $0 == ":" || $0 == "-" || $0 == "_" })
+        else { return nil }
+        return """
+            tell application id "\(bundleID)" to show (first session whose id ends with "/\(session)")
+            """
+    }
+
+    private static func show(session: String) -> Bool {
+        guard let script = showScript(session: session) else { return false }
+        // osascript rather than NSAppleScript, which isn't safe off the main thread.
+        return run("/usr/bin/osascript", ["-e", script]) != nil
     }
 
     /// `…/Rex Server.app/Contents/MacOS/rex`, next to the server's own executable.
@@ -67,7 +91,7 @@ enum Rex {
         return FileManager.default.isExecutableFile(atPath: cli) ? cli : nil
     }
 
-    private static func blocks(cli: String) -> [(id: String, processes: BlockProcesses)]? {
+    private static func blocks(cli: String) -> [(id: String, session: String, processes: BlockProcesses)]? {
         struct Sessions: Decodable {
             struct Session: Decodable { let session_id: String }
             let sessions: [Session]
@@ -82,17 +106,17 @@ enum Rex {
         // `block ls --json` lists one session at a time.
         guard let data = run(cli, ["ls", "--json", "--autostart=false"]),
               let sessions = try? JSONDecoder().decode(Sessions.self, from: data) else { return nil }
-        let all = sessions.sessions.flatMap { session -> [List.Block] in
+        let all = sessions.sessions.flatMap { session -> [(List.Block, String)] in
             guard let data = run(cli, ["block", "ls", "-s", session.session_id, "--json", "--autostart=false"]),
                   let list = try? JSONDecoder().decode(List.self, from: data) else { return [] }
-            return list.blocks
+            return list.blocks.map { ($0, session.session_id) }
         }
         return all
-            .filter { $0.flavor?.contains("terminal") ?? true }
-            .compactMap { block in
+            .filter { $0.0.flavor?.contains("terminal") ?? true }
+            .compactMap { block, session in
                 guard let data = run(cli, ["block", "call", "process", "--block", block.block_id, "--autostart=false"]),
                       let processes = try? JSONDecoder().decode(BlockProcesses.self, from: data) else { return nil }
-                return (block.block_id, processes)
+                return (block.block_id, session, processes)
             }
     }
 
