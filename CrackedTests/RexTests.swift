@@ -25,12 +25,13 @@ struct RexTests {
         // claude 500 → zsh 400 → login 300 → Rex Server 200
         let lineage: Set<Int32> = [500, 400, 300, 200]
         let blocks = [
-            (id: "block:a", processes: processes(child: 111, foreground: 112)),
-            (id: "block:b", processes: processes(child: 300, foreground: 500)),
+            Rex.Block(id: "block:a", session: "session:1", processes: processes(child: 111, foreground: 112)),
+            Rex.Block(id: "block:b", session: "session:2", processes: processes(child: 300, foreground: 500)),
         ]
-        #expect(Rex.block(containing: lineage, in: blocks) == "block:b")
+        #expect(Rex.block(containing: lineage, in: blocks)?.id == "block:b")
+        #expect(Rex.block(containing: lineage, in: blocks)?.session == "session:2")
         #expect(Rex.block(containing: [999], in: blocks) == nil)
-        #expect(Rex.block(containing: lineage, in: [(id: "block:c", processes: processes(child: nil, foreground: 400))]) == "block:c",
+        #expect(Rex.block(containing: lineage, in: [Rex.Block(id: "block:c", session: "s", processes: processes(child: nil, foreground: 400))])?.id == "block:c",
                 "The foreground process alone is enough")
     }
 

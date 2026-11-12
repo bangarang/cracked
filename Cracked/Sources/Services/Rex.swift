@@ -30,13 +30,20 @@ enum Rex {
         let foreground: Process?
     }
 
+    /// A terminal block, the Rex session it's in, and the processes in it.
+    struct Block: Equatable {
+        let id: String
+        let session: String
+        let processes: BlockProcesses
+    }
+
     /// The block whose terminal runs `lineage` (the agent's PID and its parents):
     /// its program (e.g. `login`) or foreground process is one of them.
-    static func block(containing lineage: Set<Int32>, in blocks: [(id: String, processes: BlockProcesses)]) -> String? {
+    static func block(containing lineage: Set<Int32>, in blocks: [Block]) -> Block? {
         blocks.first { block in
             [block.processes.child?.pid, block.processes.foreground?.pid]
                 .contains { $0.map(lineage.contains) ?? false }
-        }?.id
+        }
     }
 
     /// Focuses the block running `pid`, shows its session and brings Rex to the front. Blocking: it runs
@@ -52,9 +59,7 @@ enum Rex {
             activate()
             return false
         }
-        let all = blocks(cli: cli) ?? []
-        let found = block(containing: lineage, in: all.map { ($0.id, $0.processes) })
-            .flatMap { id in all.first { $0.id == id } }
+        let found = block(containing: lineage, in: blocks(cli: cli))
         if let found {
             // Focus the block within its session, then show that session (it may not be the
             // one on screen). Rex applies `show` asynchronously at the session's focused
@@ -91,7 +96,7 @@ enum Rex {
         return FileManager.default.isExecutableFile(atPath: cli) ? cli : nil
     }
 
-    private static func blocks(cli: String) -> [(id: String, session: String, processes: BlockProcesses)]? {
+    private static func blocks(cli: String) -> [Block] {
         struct Sessions: Decodable {
             struct Session: Decodable { let session_id: String }
             let sessions: [Session]
@@ -105,7 +110,7 @@ enum Rex {
         }
         // `block ls --json` lists one session at a time.
         guard let data = run(cli, ["ls", "--json", "--autostart=false"]),
-              let sessions = try? JSONDecoder().decode(Sessions.self, from: data) else { return nil }
+              let sessions = try? JSONDecoder().decode(Sessions.self, from: data) else { return [] }
         let all = sessions.sessions.flatMap { session -> [(List.Block, String)] in
             guard let data = run(cli, ["block", "ls", "-s", session.session_id, "--json", "--autostart=false"]),
                   let list = try? JSONDecoder().decode(List.self, from: data) else { return [] }
@@ -116,7 +121,7 @@ enum Rex {
             .compactMap { block, session in
                 guard let data = run(cli, ["block", "call", "process", "--block", block.block_id, "--autostart=false"]),
                       let processes = try? JSONDecoder().decode(BlockProcesses.self, from: data) else { return nil }
-                return (block.block_id, session, processes)
+                return Block(id: block.block_id, session: session, processes: processes)
             }
     }
 
@@ -124,8 +129,12 @@ enum Rex {
         _ = app?.activate()
     }
 
-    /// Runs the CLI and returns its output, or nil if it failed.
+    /// Each CLI call answers in well under a second; a stuck one is given up on.
+    static let commandTimeout: TimeInterval = 3
+
+    /// Runs a command and returns its output, or nil if it failed or took too long.
     private static func run(_ executable: String, _ arguments: [String]) -> Data? {
+        final class Output: @unchecked Sendable { var data = Data() }
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -133,8 +142,19 @@ enum Rex {
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        // Read on another thread (so a full pipe can't stall the command) and wait for
+        // end of output, which comes when the command exits.
+        let output = Output()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            output.data = pipe.fileHandleForReading.readDataToEndOfFile()
+            done.signal()
+        }
+        guard done.wait(timeout: .now() + commandTimeout) == .success else {
+            process.terminate()
+            return nil
+        }
         process.waitUntilExit()
-        return process.terminationStatus == 0 ? data : nil
+        return process.terminationStatus == 0 ? output.data : nil
     }
 }
