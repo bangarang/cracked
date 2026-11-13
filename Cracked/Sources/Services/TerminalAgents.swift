@@ -317,9 +317,13 @@ enum AgentNavigator {
             NSWorkspace.shared.open(url)
             return
         }
-        if let tty = session.tty, let bundlePath = session.terminalBundlePath,
-           let bundleID = Bundle(path: bundlePath)?.bundleIdentifier,
-           let script = focusScript(bundleID: bundleID, tty: tty) {
+        let bundleID = session.terminalBundlePath.flatMap { Bundle(path: $0)?.bundleIdentifier }
+        if bundleID == Rex.bundleID, let pid = session.claudePID {
+            // The `rex` CLI finds and focuses the session's block; it takes a moment.
+            Task.detached { Rex.focus(pid: pid) }
+            return
+        }
+        if let tty = session.tty, let bundleID, let script = focusScript(bundleID: bundleID, tty: tty) {
             var error: NSDictionary?
             NSAppleScript(source: script)?.executeAndReturnError(&error)
             if error == nil { return }

@@ -11,6 +11,8 @@
 		0A3C403131F25F1903D7FDD3 /* CrackedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9B8D24B519FBF2FD900F9C /* CrackedApp.swift */; };
 		0B0AF18855C50DB1B691E938 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 99D26707332CEBA6F35C9169 /* GRDB */; };
 		0F7383517735C41E1AD8ACCC /* DatabaseManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC65F5A4D06CA44EB8B179 /* DatabaseManagerTests.swift */; };
+		0FFCC047F39F7DDE512599D3 /* RexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A90152BBD6D491B57472212 /* RexTests.swift */; };
+		1AC367C7906050479ED927DA /* Rex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DECEF7E9108E643F0933C3 /* Rex.swift */; };
 		26AB3E5F883F68A23CF8B446 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */; };
 		36868D7C3C0F2F7CB3A345DD /* ProcessInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F72B8B87A9097A7CCB7530 /* ProcessInfo.swift */; };
 		36CD76F77DD0358E9BF0564C /* LocalModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B781FC7DC6B90BC8A519FC /* LocalModelsTests.swift */; };
@@ -76,6 +78,7 @@
 		3EE0D673C8DE5505F3ABAE9A /* OpenCodeAgentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeAgentsTests.swift; sourceTree = "<group>"; };
 		46370B99D9947DFA8BC9D549 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		4755905E2C3A1BD132585CE8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4A90152BBD6D491B57472212 /* RexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RexTests.swift; sourceTree = "<group>"; };
 		54AEE186F4063B3129B73D3A /* ClaudeCodeSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeSetup.swift; sourceTree = "<group>"; };
 		5665EB893C68949F0B587847 /* AgentRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRowView.swift; sourceTree = "<group>"; };
 		6761520AD2FF77D63A9E0B0C /* PaseoAgents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaseoAgents.swift; sourceTree = "<group>"; };
@@ -83,6 +86,7 @@
 		85C835412E11181D20B4890C /* OpenCodeAgents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeAgents.swift; sourceTree = "<group>"; };
 		8F1050A62D13F524D9A39827 /* StatsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsViewModel.swift; sourceTree = "<group>"; };
 		9CC58D76AED71F00F8525E90 /* AlertEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEngineTests.swift; sourceTree = "<group>"; };
+		A2DECEF7E9108E643F0933C3 /* Rex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rex.swift; sourceTree = "<group>"; };
 		A302E853DC5A19D2B7204050 /* Cracked.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cracked.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AEE49540ECFAAE8107026581 /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
 		B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordTracker.swift; sourceTree = "<group>"; };
@@ -130,6 +134,7 @@
 				E0B371928B35FDEE2C0EB074 /* PaseoAgentsTests.swift */,
 				3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */,
 				CCF28E46701D024BC864382B /* RecordTrackerTests.swift */,
+				4A90152BBD6D491B57472212 /* RexTests.swift */,
 				1E7C6BA9FC775678BE8A98DD /* StaleAppTests.swift */,
 				F5B882B0731C76077503C97C /* TerminalAgentsTests.swift */,
 			);
@@ -236,6 +241,7 @@
 				6761520AD2FF77D63A9E0B0C /* PaseoAgents.swift */,
 				0BA6A2660C776C2F4FE16745 /* ProcessMonitor.swift */,
 				B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */,
+				A2DECEF7E9108E643F0933C3 /* Rex.swift */,
 				271C41C482A0CD06A5A76E0C /* SystemReport.swift */,
 				F3D00CDA258BC5B4AC091903 /* TerminalAgents.swift */,
 			);
@@ -355,6 +361,7 @@
 				F522356289C547654A031400 /* ProcessMonitor.swift in Sources */,
 				8E03F68704C6E1FE8DAB158F /* ProcessRowView.swift in Sources */,
 				E65E940EB372D21BB1049452 /* RecordTracker.swift in Sources */,
+				1AC367C7906050479ED927DA /* Rex.swift in Sources */,
 				012BE44BFD876B0E736367B5 /* SettingsView.swift in Sources */,
 				6B2D3B7571A0AC346E8D34AB /* StaleAppRowView.swift in Sources */,
 				47686BFC7EE9443C9677D210 /* StaleApps.swift in Sources */,
@@ -378,6 +385,7 @@
 				D31666C4FEECB7600197408F /* PaseoAgentsTests.swift in Sources */,
 				26AB3E5F883F68A23CF8B446 /* ProcessMonitorTests.swift in Sources */,
 				AB531BEBFC242E6460D628F1 /* RecordTrackerTests.swift in Sources */,
+				0FFCC047F39F7DDE512599D3 /* RexTests.swift in Sources */,
 				C1B662C54E46046147B07894 /* StaleAppTests.swift in Sources */,
 				CEA8CA56BA9110F6DE5D0489 /* TerminalAgentsTests.swift in Sources */,
 			);
