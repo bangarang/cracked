@@ -323,6 +323,17 @@ enum AgentNavigator {
             Task.detached { Rex.focus(pid: pid) }
             return
         }
+        if T3Code.isT3Code(bundleID: bundleID), let bundlePath = session.terminalBundlePath {
+            // Finding the thread reads T3 Code's database, which may be busy: not on the main thread.
+            let sessionID = session.sessionID
+            let pid = session.terminalPID
+            Task.detached {
+                if !T3Code.open(sessionID: sessionID, appBundlePath: bundlePath), let pid {
+                    await MainActor.run { _ = AppActions.activate(pid: pid) }
+                }
+            }
+            return
+        }
         if let tty = session.tty, let bundleID, let script = focusScript(bundleID: bundleID, tty: tty) {
             var error: NSDictionary?
             NSAppleScript(source: script)?.executeAndReturnError(&error)

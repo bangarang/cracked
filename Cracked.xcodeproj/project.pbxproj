@@ -8,12 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		012BE44BFD876B0E736367B5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4755905E2C3A1BD132585CE8 /* SettingsView.swift */; };
+		07FBC84AF61189EA5918C068 /* T3CodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319385AA1FBAFCAE3E98C578 /* T3CodeTests.swift */; };
 		0A3C403131F25F1903D7FDD3 /* CrackedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9B8D24B519FBF2FD900F9C /* CrackedApp.swift */; };
 		0B0AF18855C50DB1B691E938 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 99D26707332CEBA6F35C9169 /* GRDB */; };
 		0F7383517735C41E1AD8ACCC /* DatabaseManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EAC65F5A4D06CA44EB8B179 /* DatabaseManagerTests.swift */; };
 		0FFCC047F39F7DDE512599D3 /* RexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A90152BBD6D491B57472212 /* RexTests.swift */; };
 		1AC367C7906050479ED927DA /* Rex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DECEF7E9108E643F0933C3 /* Rex.swift */; };
 		26AB3E5F883F68A23CF8B446 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */; };
+		320F597E0E7DDB6AAB0A6429 /* T3Code.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D64ADE297CF4EA899FF719 /* T3Code.swift */; };
 		36868D7C3C0F2F7CB3A345DD /* ProcessInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F72B8B87A9097A7CCB7530 /* ProcessInfo.swift */; };
 		36CD76F77DD0358E9BF0564C /* LocalModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B781FC7DC6B90BC8A519FC /* LocalModelsTests.swift */; };
 		38D4687A43167BECF926456D /* SystemReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 271C41C482A0CD06A5A76E0C /* SystemReport.swift */; };
@@ -72,6 +74,7 @@
 		20BFE4392D783C0D48F6C3D8 /* OpenCodeSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeSetup.swift; sourceTree = "<group>"; };
 		250B435FBEECDD6FA0FFBD91 /* DebugSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSnapshots.swift; sourceTree = "<group>"; };
 		271C41C482A0CD06A5A76E0C /* SystemReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemReport.swift; sourceTree = "<group>"; };
+		319385AA1FBAFCAE3E98C578 /* T3CodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T3CodeTests.swift; sourceTree = "<group>"; };
 		3952A24C4C7299492F8DB7F7 /* ProcessMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitorTests.swift; sourceTree = "<group>"; };
 		39AF25AB7D47915CB05C1D31 /* ProcessRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		3A066D73100003845DECA1DC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -99,6 +102,7 @@
 		CDB3061BC8D691716398D817 /* AgentInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentInbox.swift; sourceTree = "<group>"; };
 		E0B371928B35FDEE2C0EB074 /* PaseoAgentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaseoAgentsTests.swift; sourceTree = "<group>"; };
 		E1FDA10C334BD5C13C185440 /* CrackedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrackedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E2D64ADE297CF4EA899FF719 /* T3Code.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T3Code.swift; sourceTree = "<group>"; };
 		E4B628B29CC02D0B6694E077 /* AlertEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertEngine.swift; sourceTree = "<group>"; };
 		E6F72B8B87A9097A7CCB7530 /* ProcessInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessInfo.swift; sourceTree = "<group>"; };
 		E8ECAADF80CD7B0ED6A68CA3 /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
@@ -136,6 +140,7 @@
 				CCF28E46701D024BC864382B /* RecordTrackerTests.swift */,
 				4A90152BBD6D491B57472212 /* RexTests.swift */,
 				1E7C6BA9FC775678BE8A98DD /* StaleAppTests.swift */,
+				319385AA1FBAFCAE3E98C578 /* T3CodeTests.swift */,
 				F5B882B0731C76077503C97C /* TerminalAgentsTests.swift */,
 			);
 			path = CrackedTests;
@@ -243,6 +248,7 @@
 				B7F33E38A4F23D0F86DCD98B /* RecordTracker.swift */,
 				A2DECEF7E9108E643F0933C3 /* Rex.swift */,
 				271C41C482A0CD06A5A76E0C /* SystemReport.swift */,
+				E2D64ADE297CF4EA899FF719 /* T3Code.swift */,
 				F3D00CDA258BC5B4AC091903 /* TerminalAgents.swift */,
 			);
 			path = Services;
@@ -368,6 +374,7 @@
 				6D13F9EF2FC06660C950E715 /* StatsView.swift in Sources */,
 				9407B6584563437082BE80BB /* StatsViewModel.swift in Sources */,
 				38D4687A43167BECF926456D /* SystemReport.swift in Sources */,
+				320F597E0E7DDB6AAB0A6429 /* T3Code.swift in Sources */,
 				E72DF5C3F22E88A0FFAC61E8 /* TerminalAgents.swift in Sources */,
 				879BDDCCF9135782431BE607 /* main.swift in Sources */,
 			);
@@ -387,6 +394,7 @@
 				AB531BEBFC242E6460D628F1 /* RecordTrackerTests.swift in Sources */,
 				0FFCC047F39F7DDE512599D3 /* RexTests.swift in Sources */,
 				C1B662C54E46046147B07894 /* StaleAppTests.swift in Sources */,
+				07FBC84AF61189EA5918C068 /* T3CodeTests.swift in Sources */,
 				CEA8CA56BA9110F6DE5D0489 /* TerminalAgentsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

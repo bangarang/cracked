@@ -30,7 +30,7 @@ enum CrackedCLI {
     }
 
     #if DEBUG
-    static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help", "snapshot", "rex-focus"]
+    static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help", "snapshot", "rex-focus", "t3-link"]
     #else
     static let commands: Set<String> = ["hook", "status", "mcp", "setup", "uninstall", "help", "--help"]
     #endif
@@ -104,6 +104,16 @@ enum CrackedCLI {
             print(found ? "focused" : "block not found")
             Thread.sleep(forTimeInterval: 0.3)
             return found ? 0 : 1
+        case "t3-link":
+            // Prints the T3 Code link a session's row opens, without opening it.
+            guard let id = arguments.first, let env = T3Code.environmentID(),
+                  let thread = T3Code.threadID(providerSessionID: id),
+                  let url = T3Code.threadLink(environmentID: env, threadID: thread) else {
+                print("no thread")
+                return 1
+            }
+            print(url.absoluteString)
+            return 0
 
         case "snapshot":
             return MainActor.assumeIsolated {
