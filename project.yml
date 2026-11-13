@@ -18,6 +18,8 @@ targets:
     sources:
       - Cracked/Sources
       - Cracked/Resources/Assets.xcassets
+      - path: THIRD_PARTY_NOTICES.md
+        buildPhase: resources
     settings:
       base:
         INFOPLIST_FILE: Cracked/Resources/Info.plist
