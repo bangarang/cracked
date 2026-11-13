@@ -27,6 +27,20 @@ final class MenuBarViewModel: ObservableObject {
         let count: Int
         let label: String
         let appBundlePath: String?
+
+        /// "1 session", "3 sessions".
+        var countText: String { Self.countText(count, label) }
+
+        /// The label ("tabs", "sessions"…) is plural; one of anything reads singular.
+        /// Records are still keyed by the plural label.
+        nonisolated static func countText(_ count: Int, _ label: String) -> String {
+            "\(count) \(unit(count, label))"
+        }
+
+        /// "session" for one, "sessions" otherwise.
+        nonisolated static func unit(_ count: Int, _ label: String) -> String {
+            count == 1 && label.hasSuffix("s") ? String(label.dropLast()) : label
+        }
     }
 
     let monitor = ProcessMonitor()
@@ -40,6 +54,7 @@ final class MenuBarViewModel: ObservableObject {
     private var knownAgentStatuses: [String: AgentSession.Status]?
     private var agentObserver: NSObjectProtocol?
     private let paseoReader = PaseoAgentReader()
+    private let openCodeReader = OpenCodeAgentReader()
     private var lastOllamaPoll = Date.distantPast
     private var ollamaPollInFlight = false
 
@@ -133,9 +148,9 @@ final class MenuBarViewModel: ObservableObject {
             ignoredBundlePaths: IgnoredApps.load().activeBundlePaths()
         )
 
-        // Tracked app counts (computed from full process list)
-        trackedApps = Self.computeTrackedApps(from: snapshot.processes)
+        // Tracked app counts (from the full process list, and the agents found)
         refreshAgents()
+        trackedApps = Self.computeTrackedApps(from: snapshot.processes, agents: agentSessions)
 
         memoryPressure = .current()
         pollOllamaIfDue(running: Ollama.isRunning(processes: snapshot.processes))
@@ -180,7 +195,10 @@ final class MenuBarViewModel: ObservableObject {
         )
     }
 
-    nonisolated static func computeTrackedApps(from processes: [ProcessSnapshot]) -> [TrackedAppCount] {
+    nonisolated static func computeTrackedApps(
+        from processes: [ProcessSnapshot],
+        agents: [AgentSession] = []
+    ) -> [TrackedAppCount] {
         var results: [TrackedAppCount] = []
 
         // Browser tabs: count "Helper (Renderer)" processes per browser
@@ -221,6 +239,20 @@ final class MenuBarViewModel: ObservableObject {
         }
         if claudeCount > 0 {
             results.append(TrackedAppCount(name: "Claude Code", count: claudeCount, label: "sessions", appBundlePath: "/Applications/Claude.app"))
+        }
+
+        // OpenCode sessions outside Paseo: the ones listed under Agents. That's every
+        // terminal UI (with or without a session yet), and sessions run by a server with no
+        // terminal of their own (e.g. T3 Code's), but not OpenCode's servers or one-shot runs.
+        let openCodeCount = agents.count { $0.provider == AgentProcess.Kind.opencode.rawValue && $0.source != .paseo }
+        if openCodeCount > 0 {
+            results.append(TrackedAppCount(name: "OpenCode", count: openCodeCount, label: "sessions", appBundlePath: "/Applications/OpenCode.app"))
+        }
+
+        // T3 Code: agents (Claude Code, OpenCode…) running in it, like Paseo's
+        let t3Agents = agents.filter { $0.source != .paseo && $0.terminalName?.hasPrefix("T3 Code") == true }
+        if let first = t3Agents.first {
+            results.append(TrackedAppCount(name: "T3 Code", count: t3Agents.count, label: "agents", appBundlePath: first.terminalBundlePath))
         }
 
         // Warp tabs: count login shell processes whose parent is a Warp process
@@ -292,7 +324,7 @@ final class MenuBarViewModel: ObservableObject {
     /// Re-reads Paseo agents, terminal sessions and hook sessions, and notifies
     /// (if enabled) when one newly finishes, errors or needs input.
     func refreshAgents() {
-        let sessions = AgentFeed.load(paseo: paseoReader)
+        let sessions = AgentFeed.load(paseo: paseoReader, openCode: openCodeReader)
 
         if let known = knownAgentStatuses, agentNotifications {
             for session in sessions where session.isWaiting && known[session.sessionID] != session.status {

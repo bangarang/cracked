@@ -15,6 +15,8 @@ struct SettingsView: View {
     @State private var hooksInstalled = ClaudeCodeSetup.areHooksInstalled
     @State private var mcpInstalled = ClaudeCodeSetup.isMCPInstalled
     @State private var mcpBusy = false
+    @State private var openCodePluginInstalled = OpenCodeSetup.isPluginInstalled
+    @State private var openCodeMCPInstalled = OpenCodeSetup.isMCPInstalled
     @State private var setupError: String?
 
     private var ignoredApps: IgnoredApps { IgnoredApps(data: ignoredAppsData) }
@@ -45,6 +47,8 @@ struct SettingsView: View {
             }
 
             claudeCodeSection
+            openCodeSection
+            agentsSection
 
             Section {
                 numberField("Check every", value: $pollInterval, unit: "seconds")
@@ -63,10 +67,11 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 720)
+        .frame(width: 460, height: 760)
         .onAppear {
             hooksInstalled = ClaudeCodeSetup.areHooksInstalled
             mcpInstalled = ClaudeCodeSetup.isMCPInstalled
+            refreshOpenCode()
         }
     }
 
@@ -125,15 +130,60 @@ struct SettingsView: View {
                 Text("MCP server")
                 Text("Lets agents check this Mac before heavy work")
             }
+        } header: {
+            Text("Claude Code")
+        } footer: {
+            Text("Hook and MCP changes apply to new Claude Code sessions.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var openCodeSection: some View {
+        Section {
+            LabeledContent {
+                detectedLabel(OpenCodeSetup.isDetected)
+            } label: {
+                Text("Sessions")
+                Text("Titles and working, done or error, with no setup")
+            }
 
             LabeledContent {
-                if paseoDetected {
-                    Label("Detected", systemImage: "checkmark.circle.fill")
-                        .labelStyle(.titleAndIcon)
-                        .foregroundStyle(.green)
+                if openCodePluginInstalled {
+                    connectedControls { perform { try OpenCodeSetup.uninstallPlugin() } }
                 } else {
-                    Text("Not found").foregroundStyle(.secondary)
+                    Button("Connect") { perform { try OpenCodeSetup.installPlugin() } }
+                        .controlSize(.small)
                 }
+            } label: {
+                Text("Plugin")
+                Text("Shows permission prompts, warns new sessions when this Mac is busy")
+            }
+
+            LabeledContent {
+                if openCodeMCPInstalled {
+                    connectedControls { perform { try OpenCodeSetup.uninstallMCP() } }
+                } else {
+                    Button("Connect") { perform { try OpenCodeSetup.installMCP() } }
+                        .controlSize(.small)
+                }
+            } label: {
+                Text("MCP server")
+                Text("Lets agents check this Mac before heavy work")
+            }
+        } header: {
+            Text("OpenCode")
+        } footer: {
+            Text("Plugin and MCP changes apply once OpenCode restarts (opencode service restart).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var agentsSection: some View {
+        Section {
+            LabeledContent {
+                detectedLabel(paseoDetected)
             } label: {
                 Text("Paseo")
                 Text("Paseo agents show up under Agents automatically")
@@ -155,11 +205,23 @@ struct SettingsView: View {
             }
         } header: {
             Text("Agents")
-        } footer: {
-            Text("Hook and MCP changes apply to new Claude Code sessions.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+    }
+
+    @ViewBuilder
+    private func detectedLabel(_ detected: Bool) -> some View {
+        if detected {
+            Label("Detected", systemImage: "checkmark.circle.fill")
+                .labelStyle(.titleAndIcon)
+                .foregroundStyle(.green)
+        } else {
+            Text("Not found").foregroundStyle(.secondary)
+        }
+    }
+
+    private func refreshOpenCode() {
+        openCodePluginInstalled = OpenCodeSetup.isPluginInstalled
+        openCodeMCPInstalled = OpenCodeSetup.isMCPInstalled
     }
 
     private var paseoDetected: Bool {
@@ -184,6 +246,7 @@ struct SettingsView: View {
             setupError = error.localizedDescription
         }
         hooksInstalled = ClaudeCodeSetup.areHooksInstalled
+        refreshOpenCode()
     }
 
     /// The claude CLI takes a moment, so run it off the main thread.

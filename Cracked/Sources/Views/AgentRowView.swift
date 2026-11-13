@@ -88,7 +88,7 @@ struct AgentRowView: View {
             return message
         }
         if let title = session.title { return title }
-        let agent = session.provider == "opencode" ? "OpenCode" : "Claude Code"
+        let agent = session.agentName == "Claude" ? "Claude Code" : session.agentName
         return hostName.map { "\(agent) in \($0)" } ?? agent
     }
 

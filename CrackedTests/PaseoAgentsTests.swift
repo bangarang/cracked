@@ -149,10 +149,45 @@ struct PaseoAgentsTests {
             proc(24, 12, "/bin/zsh"),
             proc(30, 5, "claude"),
         ]
-        let tracked = Dictionary(uniqueKeysWithValues: MenuBarViewModel.computeTrackedApps(from: processes).map { ($0.name, $0) })
+        let tracked = Dictionary(uniqueKeysWithValues: MenuBarViewModel.computeTrackedApps(
+            from: processes).map { ($0.name, $0) })
         #expect(tracked["Paseo"]?.count == 3)
         #expect(tracked["Paseo"]?.label == "agents")
         #expect(tracked["Claude Code"]?.count == 1, "Paseo's claude processes aren't terminal sessions")
+        #expect(tracked["OpenCode"] == nil, "OpenCode is counted from the agents found, not processes")
+        #expect(tracked["T3 Code"] == nil)
+    }
+
+    @Test("Tracked apps count T3 Code's agents, and OpenCode sessions run by servers")
+    func trackedAgents() {
+        func agent(_ id: String, provider: String, host: String?) -> AgentSession {
+            AgentSession(sessionID: id, cwd: "/tmp", status: .working, message: nil, startedAt: Date(), updatedAt: Date(),
+                         terminalBundlePath: host, provider: provider, scanned: true)
+        }
+        let t3 = "/Applications/T3 Code (Nightly).app"
+        let agents = [
+            agent("a", provider: "claude", host: t3),
+            agent("b", provider: "opencode", host: t3),
+            agent("c", provider: "opencode", host: nil),
+            agent("d", provider: "claude", host: "/Applications/Ghostty.app"),
+            AgentSession(sessionID: "e", cwd: "/tmp", status: .working, message: nil, startedAt: Date(), updatedAt: Date(),
+                         paseoAgentID: "p1", paseoServerID: "s", provider: "opencode"),
+        ]
+        let tracked = Dictionary(uniqueKeysWithValues: MenuBarViewModel.computeTrackedApps(
+            from: [], agents: agents).map { ($0.name, $0) })
+        #expect(tracked["T3 Code"]?.count == 2)
+        #expect(tracked["T3 Code"]?.label == "agents")
+        #expect(tracked["T3 Code"]?.appBundlePath == t3)
+        #expect(tracked["OpenCode"]?.count == 2, "No terminal UIs, but two sessions running; Paseo's is Paseo's")
+    }
+
+    @Test("Tracked counts read singular for one")
+    func plural() {
+        typealias T = MenuBarViewModel.TrackedAppCount
+        #expect(T.countText(1, "sessions") == "1 session")
+        #expect(T.countText(3, "sessions") == "3 sessions")
+        #expect(T.countText(0, "tabs") == "0 tabs")
+        #expect(T.countText(1, "agents") == "1 agent")
     }
 
     @Test("PASEO_HOME overrides ~/.paseo")

@@ -39,7 +39,7 @@ struct AgentProcess: Sendable, Equatable {
     var terminalBundlePath: String?
 }
 
-/// Finds Claude Code and OpenCode sessions running in terminals, outside Paseo.
+/// Finds Claude Code and OpenCode processes running in terminals, outside Paseo.
 enum TerminalAgents {
     /// An idle Claude Code session counts as "done" (your move) this long after its last turn.
     static let recentlyFinishedWindow: TimeInterval = 3600
@@ -97,9 +97,11 @@ enum TerminalAgents {
 
     // MARK: - Scanning
 
-    static func scan(now: Date = Date()) -> [AgentSession] {
-        processes().compactMap { process in
-            let file = process.kind == .claude ? claudeSessionFile(pid: process.pid) : nil
+    /// Claude Code sessions in terminals. OpenCode processes are mapped onto their
+    /// sessions by `OpenCodeAgentReader`, which knows their state.
+    static func scan(processes: [AgentProcess] = processes(), now: Date = Date()) -> [AgentSession] {
+        processes.filter { $0.kind == .claude }.compactMap { process in
+            let file = claudeSessionFile(pid: process.pid)
             guard var session = session(for: process, claude: file, now: now) else { return nil }
             if session.title == nil, let id = file?.sessionId {
                 session.title = ClaudeTitles.title(sessionID: id, cwd: session.cwd)
@@ -123,12 +125,15 @@ enum TerminalAgents {
     }
 
     /// Agent processes outside Paseo, skipping ones started by another agent
-    /// (e.g. `claude -p` run from an agent's shell).
+    /// (e.g. `claude -p` run from an agent's shell) and OpenCode servers, which
+    /// aren't sessions themselves.
     static func processes() -> [AgentProcess] {
         var found: [AgentProcess] = []
         let pids = ProcessTree.allPIDs()
         for pid in pids where pid > 1 {
             guard let kind = cachedKind(of: pid) else { continue }
+            if kind == .opencode, let arguments = ProcessTree.arguments(of: pid),
+               !OpenCodeAgents.isSessionProcess(arguments: arguments) { continue }
             guard !ProcessTree.ancestors(of: pid).contains(where: { isPaseo($0) || isAgent($0) }) else { continue }
 
             let context = ProcessTree.context(startingAt: pid)
@@ -213,6 +218,28 @@ extension ProcessTree {
         guard let info = kinfo(pid) else { return nil }
         let start = info.kp_proc.p_un.__p_starttime
         return Date(timeIntervalSince1970: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000)
+    }
+
+    /// The process's argv, via KERN_PROCARGS2. Nil when it can't be read.
+    static func arguments(of pid: pid_t) -> [String]? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        let argc = buffer.withUnsafeBytes { $0.load(as: Int32.self) }
+        // argc, then the executable path, NUL padding, then argv as NUL-terminated strings.
+        var index = MemoryLayout<Int32>.size
+        while index < size, buffer[index] != 0 { index += 1 }
+        while index < size, buffer[index] == 0 { index += 1 }
+        var arguments: [String] = []
+        while arguments.count < Int(argc), index < size {
+            let start = index
+            while index < size, buffer[index] != 0 { index += 1 }
+            arguments.append(String(decoding: buffer[start..<index], as: UTF8.self))
+            index += 1
+        }
+        return arguments
     }
 
     static func cwd(of pid: pid_t) -> String? {

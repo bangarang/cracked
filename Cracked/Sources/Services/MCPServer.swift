@@ -1,7 +1,7 @@
 import AppKit
 
 /// A minimal Model Context Protocol server over stdio (newline-delimited JSON-RPC 2.0).
-/// Run with `Cracked mcp`; register with `claude mcp add cracked -- <path>/Cracked mcp`.
+/// Run with `Cracked mcp`; `Cracked setup` registers it with Claude Code and OpenCode.
 final class MCPServer {
     /// Everything the tools touch, injectable for tests.
     struct Environment {
@@ -68,8 +68,8 @@ final class MCPServer {
                                "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"],
                 "instructions": """
                     Cracked monitors this Mac: system load, CPU hogs, bloated long-running apps \
-                    ("worth a restart"), tracked app counts (browser tabs, Claude Code sessions) and \
-                    the state of every coding agent on the machine (Claude Code sessions and Paseo agents). Check system_status before \
+                    ("worth a restart"), tracked app counts (browser tabs, Claude Code and OpenCode sessions) and \
+                    the state of every coding agent on the machine (Claude Code and OpenCode sessions, and Paseo agents). Check system_status before \
                     starting heavy work like large builds or test suites.
                     """,
             ])
@@ -90,13 +90,13 @@ final class MCPServer {
 
     nonisolated(unsafe) static let tools: [[String: Any]] = [
         tool("system_status",
-             "Live snapshot of this Mac: pressure level (CPU, load and macOS memory pressure), load average, RAM, models loaded in Ollama with their memory, CPU hogs, apps worth restarting, tracked app counts and every coding agent (Claude Code sessions and Paseo agents).",
+             "Live snapshot of this Mac: pressure level (CPU, load and macOS memory pressure), load average, RAM, models loaded in Ollama with their memory, CPU hogs, apps worth restarting, tracked app counts and every coding agent (Claude Code and OpenCode sessions, and Paseo agents).",
              readOnly: true),
         tool("list_agent_sessions",
-             "Every coding agent on this Mac, from the Paseo app (source paseo), Claude Code / OpenCode running in terminals (source terminal) and Claude Code hooks (source claudeCode), with its project, title, provider, status (ready, working, needsInput, done, error, running), pending message and hosting terminal.",
+             "Every coding agent on this Mac, from the Paseo app (source paseo), Claude Code in terminals and OpenCode sessions (source terminal) and Claude Code hooks (source claudeCode), with its project, title, provider, status (ready, working, needsInput, done, error, running), pending message and hosting terminal.",
              readOnly: true),
         tool("get_records",
-             "All-time records Cracked has logged: peak CPU, most processes, and personal bests for browser tabs, windows and Claude Code sessions.",
+             "All-time records Cracked has logged: peak CPU, most processes, and personal bests for browser tabs, windows and Claude Code / OpenCode sessions.",
              readOnly: true),
         tool("restart_app",
              "Gracefully quit and relaunch an app. Only apps currently listed under worth_a_restart in system_status can be restarted.",
@@ -138,7 +138,7 @@ final class MCPServer {
             encoder.keyEncodingStrategy = .convertToSnakeCase
             encoder.dateEncodingStrategy = .iso8601
             let json = (try? encoder.encode(report.agents)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-            return text(report.agents.isEmpty ? "No Claude Code sessions or Paseo agents are reporting to Cracked." : json)
+            return text(report.agents.isEmpty ? "No Claude Code, OpenCode or Paseo agents are running." : json)
         case "get_records":
             let records = environment.records()
             return text(records.isEmpty ? "No records yet." : encode(records))

@@ -116,7 +116,7 @@ struct SystemReport: Encodable, Sendable {
             cpuThreshold: settings.cpuThreshold,
             ignoredBundlePaths: ignoredBundlePaths
         )
-        let tracked = MenuBarViewModel.computeTrackedApps(from: snapshot.processes)
+        let tracked = MenuBarViewModel.computeTrackedApps(from: snapshot.processes, agents: agents)
 
         return SystemReport(
             timestamp: snapshot.timestamp,
@@ -160,7 +160,7 @@ struct SystemReport: Encodable, Sendable {
             settings: .load(),
             launchedAppPIDs: launchedAppPIDs(),
             ignoredBundlePaths: IgnoredApps.load().activeBundlePaths(),
-            agents: AgentFeed.load(paseo: PaseoAgentReader()),
+            agents: AgentFeed.load(paseo: PaseoAgentReader(), openCode: OpenCodeAgentReader()),
             cpuCores: ProcessInfo.processInfo.activeProcessorCount,
             memoryPressure: .current(),
             localModels: Ollama.isRunning(processes: processes) ? (Ollama.loadedModelsSync() ?? []) : []
@@ -217,7 +217,7 @@ struct SystemReport: Encodable, Sendable {
             lines.append("Local models: " + models)
         }
         if !trackedApps.isEmpty {
-            lines.append("Tracked: " + trackedApps.map { "\($0.name) \($0.count) \($0.label)" }.joined(separator: ", "))
+            lines.append("Tracked: " + trackedApps.map { "\($0.name) " + MenuBarViewModel.TrackedAppCount.countText($0.count, $0.label) }.joined(separator: ", "))
         }
         if !agents.isEmpty {
             lines.append("Agents:")
@@ -231,7 +231,7 @@ struct SystemReport: Encodable, Sendable {
         return lines.joined(separator: "\n")
     }
 
-    /// Context for a new Claude Code session, only when the machine is under
+    /// Context for a new Claude Code or OpenCode session, only when the machine is under
     /// pressure (so it's useful signal, not noise in every session).
     var agentBrief: String? {
         guard pressure != .normal || memoryPercent >= 0.9 else { return nil }
