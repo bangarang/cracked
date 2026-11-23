@@ -10,6 +10,8 @@ final class MCPServer {
         var restart: (_ pid: Int32, _ bundlePath: String) -> Bool
         var snooze: (_ bundlePath: String, _ until: Date) -> Void
         var runningApps: () -> [(name: String, bundlePath: String)]
+        /// This Mac plus paired Macs seen recently (just this Mac when Fleet is off).
+        var fleet: (_ thisMac: SystemReport) -> [FleetMember] = { [FleetMember(report: $0, address: nil, isThisMac: true)] }
         var now: () -> Date = { Date() }
     }
 
@@ -70,7 +72,8 @@ final class MCPServer {
                     Cracked monitors this Mac: system load, CPU hogs, bloated long-running apps \
                     ("worth a restart"), tracked app counts (browser tabs, Claude Code sessions) and \
                     the state of every coding agent on the machine (Claude Code sessions and Paseo agents). Check system_status before \
-                    starting heavy work like large builds or test suites.
+                    starting heavy work like large builds or test suites. If the user has paired other Macs, fleet_status and \
+                    least_loaded_machine show which one has the most room.
                     """,
             ])
         case "ping":
@@ -97,6 +100,12 @@ final class MCPServer {
              readOnly: true),
         tool("get_records",
              "All-time records Cracked has logged: peak CPU, most processes, and personal bests for browser tabs, windows and Claude Code sessions.",
+             readOnly: true),
+        tool("fleet_status",
+             "Every Mac paired with this one in Cracked's fleet (and this Mac): load, load per core, RAM, memory pressure, local models and agents working on each. Use it to see whether another Mac has room for heavy work.",
+             readOnly: true),
+        tool("least_loaded_machine",
+             "Ranks this Mac and paired Macs by headroom (load per core, memory pressure, RAM in use) and names the best one for a heavy build or test run, with its Tailscale address.",
              readOnly: true),
         tool("restart_app",
              "Gracefully quit and relaunch an app. Only apps currently listed under worth_a_restart in system_status can be restarted.",
@@ -139,6 +148,13 @@ final class MCPServer {
             encoder.dateEncodingStrategy = .iso8601
             let json = (try? encoder.encode(report.agents)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
             return text(report.agents.isEmpty ? "No Claude Code sessions or Paseo agents are reporting to Cracked." : json)
+        case "fleet_status":
+            let members = environment.fleet(environment.report())
+            let lines = members.map(FleetRanking.line)
+            let note = members.count == 1 ? "\n\nNo other Macs are paired (or none answered in the last 3 minutes)." : ""
+            return text(lines.joined(separator: "\n") + note)
+        case "least_loaded_machine":
+            return text(FleetRanking.recommendation(environment.fleet(environment.report())))
         case "get_records":
             let records = environment.records()
             return text(records.isEmpty ? "No records yet." : encode(records))
@@ -219,7 +235,8 @@ extension MCPServer.Environment {
                         let name = app.localizedName ?? ((path as NSString).lastPathComponent as NSString).deletingPathExtension
                         return (name, path)
                     }
-            }
+            },
+            fleet: { FleetMember.current(thisMac: $0) }
         )
     }
 }

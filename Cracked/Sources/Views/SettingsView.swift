@@ -3,6 +3,7 @@ import ServiceManagement
 import AppKit
 
 struct SettingsView: View {
+    @ObservedObject var fleet: FleetMonitor
     @AppStorage("cpuThreshold") private var cpuThreshold: Double = CrackedSettings.defaultCPUThreshold
     @AppStorage("stalenessThresholdDays") private var stalenessThresholdDays: Int = 7
     @AppStorage("restartMemoryThresholdGB") private var restartMemoryThresholdGB: Double = 2.0
@@ -45,6 +46,8 @@ struct SettingsView: View {
             }
 
             claudeCodeSection
+
+            FleetSettingsSection(fleet: fleet)
 
             Section {
                 numberField("Check every", value: $pollInterval, unit: "seconds")

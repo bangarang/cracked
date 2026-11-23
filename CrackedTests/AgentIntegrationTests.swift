@@ -180,10 +180,10 @@ struct MCPServerTests {
         #expect(server.handle(line: "{not json")?.contains("-32700") == true)
     }
 
-    @Test("Lists five tools, with restart marked destructive")
+    @Test("Lists seven tools, with restart marked destructive")
     func toolsList() {
         let tools = (call(makeServer(spy: Spy()), "tools/list")["result"] as! [String: Any])["tools"] as! [[String: Any]]
-        #expect(tools.map { $0["name"] as! String } == ["system_status", "list_agent_sessions", "get_records", "restart_app", "snooze_app"])
+        #expect(tools.map { $0["name"] as! String } == ["system_status", "list_agent_sessions", "get_records", "fleet_status", "least_loaded_machine", "restart_app", "snooze_app"])
         let restart = tools.first { $0["name"] as? String == "restart_app" }!
         #expect((restart["annotations"] as! [String: Any])["destructiveHint"] as? Bool == true)
     }

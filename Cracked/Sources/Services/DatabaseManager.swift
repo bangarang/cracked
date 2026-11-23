@@ -67,19 +67,43 @@ final class DatabaseManager: Sendable {
             }
         }
 
+        migrator.registerMigration("v3") { db in
+            try db.alter(table: "snapshots") { t in
+                t.add(column: "cpuCores", .integer)
+                t.add(column: "memoryPressure", .integer)
+                t.add(column: "activeAgents", .integer)
+                t.add(column: "localModelMB", .integer)
+                t.add(column: "zombieScore", .double)
+                t.add(column: "zombieApp", .text)
+                t.add(column: "zombieDays", .double)
+                t.add(column: "zombieGB", .double)
+            }
+            try db.create(index: "snapshots_timestamp", on: "snapshots", columns: ["timestamp"], ifNotExists: true)
+            try db.create(index: "tracked_app_snapshots_timestamp", on: "tracked_app_snapshots",
+                          columns: ["timestamp"], ifNotExists: true)
+        }
+
         try migrator.migrate(dbQueue)
     }
 
     // MARK: - Snapshots
 
-    func saveSnapshot(_ snapshot: SystemSnapshot) throws {
+    func saveSnapshot(_ snapshot: SystemSnapshot, extras: SnapshotExtras? = nil) throws {
         try dbQueue.write { db in
             var record = SnapshotRecord(
                 timestamp: snapshot.timestamp.timeIntervalSince1970,
                 loadAvg: snapshot.loadAverage,
                 totalProcesses: snapshot.totalProcesses,
                 memoryUsedMB: snapshot.memoryUsedMB,
-                memoryTotalMB: snapshot.memoryTotalMB
+                memoryTotalMB: snapshot.memoryTotalMB,
+                cpuCores: extras?.cpuCores,
+                memoryPressure: extras.map { ["normal": 0, "warning": 1, "critical": 2][$0.memoryPressure.rawValue] ?? 0 },
+                activeAgents: extras?.activeAgents,
+                localModelMB: extras?.localModelMB,
+                zombieScore: extras?.zombie?.score,
+                zombieApp: extras?.zombie?.app,
+                zombieDays: extras?.zombie?.days,
+                zombieGB: extras?.zombie?.gb
             )
             try record.insert(db)
 
@@ -216,6 +240,34 @@ final class DatabaseManager: Sendable {
                 .order(Column("timestamp").asc)
                 .fetchAll(db)
         }
+    }
+
+    func snapshots(from start: Date, to end: Date) throws -> [SnapshotRecord] {
+        try dbQueue.read { db in
+            try SnapshotRecord
+                .filter(Column("timestamp") >= start.timeIntervalSince1970 && Column("timestamp") < end.timeIntervalSince1970)
+                .order(Column("timestamp").asc)
+                .fetchAll(db)
+        }
+    }
+
+    /// The most tabs any browser had open in the period.
+    func peakTabs(from start: Date, to end: Date) throws -> (app: String, count: Int)? {
+        try dbQueue.read { db in
+            let row = try Row.fetchOne(db, sql: """
+                SELECT appName, MAX(count) AS peak FROM tracked_app_snapshots
+                WHERE label = 'tabs' AND timestamp >= ? AND timestamp < ?
+                GROUP BY appName ORDER BY peak DESC LIMIT 1
+                """, arguments: [start.timeIntervalSince1970, end.timeIntervalSince1970])
+            guard let row, let app: String = row["appName"], let peak: Int = row["peak"] else { return nil }
+            return (app, peak)
+        }
+    }
+
+    /// Stats for a stretch of time, for Wrapped cards, the fleet and the leaderboard.
+    func periodStats(from start: Date, to end: Date, defaultCores: Int) throws -> PeriodStats {
+        PeriodStats.from(snapshots: try snapshots(from: start, to: end), start: start, end: end,
+                         defaultCores: defaultCores, trackedPeak: try peakTabs(from: start, to: end))
     }
 
     // MARK: - Hall of shame

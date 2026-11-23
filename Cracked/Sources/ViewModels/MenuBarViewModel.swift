@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import Combine
 
 @MainActor
 final class MenuBarViewModel: ObservableObject {
@@ -20,6 +21,10 @@ final class MenuBarViewModel: ObservableObject {
     /// Models being unloaded, so their button can show progress.
     @Published var unloadingModels: Set<String> = []
     @Published var memoryPressure: MemoryPressure = .normal
+    /// The full picture of this Mac, rebuilt with each new reading. Served to the fleet
+    /// and used for the Right Now share card.
+    @Published private(set) var latestReport: SystemReport?
+    private(set) var machine = MachineIdentity.current()
 
     struct TrackedAppCount: Identifiable {
         let id = UUID()
@@ -42,6 +47,11 @@ final class MenuBarViewModel: ObservableObject {
     private let paseoReader = PaseoAgentReader()
     private var lastOllamaPoll = Date.distantPast
     private var ollamaPollInFlight = false
+    private var lastSnapshotTime: Date?
+    private var fleetForwarder: AnyCancellable?
+    private var fleetCLIObserver: NSObjectProtocol?
+    /// Paired Macs. Created in `start()` once the database is open.
+    private(set) var fleet: FleetMonitor!
 
     @AppStorage("cpuThreshold") var cpuThreshold: Double = CrackedSettings.defaultCPUThreshold
     @AppStorage("agentNotifications") private var agentNotifications: Bool = false
@@ -52,7 +62,11 @@ final class MenuBarViewModel: ObservableObject {
 
     var stalenessThresholdSeconds: Int { stalenessThresholdDays * 86400 }
 
+    /// The app's instance, for code outside SwiftUI (reopening the app).
+    private(set) static weak var shared: MenuBarViewModel?
+
     init() {
+        Self.shared = self
         start()
     }
 
@@ -83,6 +97,24 @@ final class MenuBarViewModel: ObservableObject {
         started = true
         db = try? DatabaseManager()
         if let db { recordTracker = RecordTracker(db: db) }
+        fleet = FleetMonitor(db: db)
+        // Fleet changes (remote agents waiting) affect the menu bar badge.
+        // Re-render the menu when paired Macs report in, and update the badge.
+        fleetForwarder = fleet.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+            Task { @MainActor in self?.updateWaitingCount() }
+        }
+        fleet.notifyAgent = { [weak self] agent in
+            guard let self, self.agentNotifications else { return }
+            self.notificationManager.sendRemoteAgentNotification(agent.agent, machineName: agent.peer.name)
+        }
+        fleet.startIfEnabled()
+        // `Cracked fleet on|off|pair` from a terminal.
+        fleetCLIObserver = DistributedNotificationCenter.default().addObserver(
+            forName: CrackedCLI.fleetChangedNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.fleet.syncWithSettings() }
+        }
         monitor.start()
         refreshAgents()
         if agentNotifications { notificationManager.requestPermission() }
@@ -146,10 +178,33 @@ final class MenuBarViewModel: ObservableObject {
         case .normal: iconState = .normal
         }
 
-        // Persist snapshot to database (every 12th poll ~ once per minute at 5s interval)
+        // Everything below runs once per new reading, not on every 1-second UI tick.
+        guard snapshot.timestamp != lastSnapshotTime else { return }
+        lastSnapshotTime = snapshot.timestamp
+
+        let report = SystemReport.build(
+            snapshot: snapshot, settings: .load(), launchedAppPIDs: launchedAppPIDs,
+            ignoredBundlePaths: IgnoredApps.load().activeBundlePaths(), agents: agentSessions,
+            cpuCores: machine.cpuCores, memoryPressure: memoryPressure, localModels: localModels,
+            machine: machine, idleSeconds: UserActivity.idleSeconds())
+        latestReport = report
+        fleet.latestReport.set(report)
+
+        let extras = SnapshotExtras(
+            cpuCores: machine.cpuCores, memoryPressure: memoryPressure,
+            activeAgents: report.activeAgentCount, localModelMB: Int(localModelsGB * 1024),
+            zombie: SnapshotExtras.worstZombie(staleApps))
+        _ = try? recordTracker?.checkExtendedRecords(
+            loadPerCore: report.loadPerCore, activeAgents: extras.activeAgents,
+            localModelGB: localModelsGB, zombie: extras.zombie)
+
+        // Persist snapshot to database (every 12th reading: once a minute at the default 5 s interval)
         persistCounter += 1
         if persistCounter % 12 == 0 {
-            try? db?.saveSnapshot(snapshot)
+            // Pick up a renamed Mac without a relaunch.
+            machine = MachineIdentity.current()
+            fleet.machine.set(machine)
+            try? db?.saveSnapshot(snapshot, extras: extras)
             // Save tracked app counts and check for PRs
             if !trackedApps.isEmpty {
                 try? db?.saveTrackedAppCounts(trackedApps.map { ($0.name, $0.count, $0.label) })
@@ -168,7 +223,7 @@ final class MenuBarViewModel: ObservableObject {
             }
         }
 
-        // Downsample every ~hour (720 polls at 5s interval)
+        // Downsample every ~hour (720 readings at 5s interval)
         if persistCounter % 720 == 0 && persistCounter > 0 {
             try? db?.downsample()
         }
@@ -294,7 +349,9 @@ final class MenuBarViewModel: ObservableObject {
     func refreshAgents() {
         let sessions = AgentFeed.load(paseo: paseoReader)
 
-        if let known = knownAgentStatuses, agentNotifications {
+        // With other Macs awake, only the one you used last notifies.
+        let notifyHere = fleet == nil || !fleet.isEnabled || fleet.shouldNotifyHere()
+        if let known = knownAgentStatuses, agentNotifications, notifyHere {
             for session in sessions where session.isWaiting && known[session.sessionID] != session.status {
                 notificationManager.sendAgentNotification(session)
             }
@@ -302,10 +359,18 @@ final class MenuBarViewModel: ObservableObject {
         knownAgentStatuses = Dictionary(sessions.map { ($0.sessionID, $0.status) }, uniquingKeysWith: { first, _ in first })
 
         if sessions != agentSessions { agentSessions = sessions }
-        let waiting = sessions.filter {
+        updateWaitingCount()
+    }
+
+    /// Agents blocked, or finished since the menu was last opened, on this Mac and paired Macs.
+    private func updateWaitingCount() {
+        let local = agentSessions.filter {
             $0.status == .needsInput || ($0.isWaiting && $0.updatedAt > agentsLastSeenAt)
         }.count
-        if waiting != agentsWaitingCount { agentsWaitingCount = waiting }
+        let remote = (fleet?.remoteAgents ?? []).filter {
+            $0.agent.status == "needsInput" || ($0.isWaiting && $0.agent.updatedAt > agentsLastSeenAt)
+        }.count
+        if local + remote != agentsWaitingCount { agentsWaitingCount = local + remote }
     }
 
     /// Called when the dropdown opens: finished sessions have now been seen.

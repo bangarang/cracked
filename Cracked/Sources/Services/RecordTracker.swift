@@ -58,4 +58,29 @@ final class RecordTracker {
 
         return messages
     }
+
+    /// Records that need more than `ps`: load per core, agents, local models, zombies.
+    /// Returns the record types that were beaten, for share prompts.
+    @discardableResult
+    func checkExtendedRecords(loadPerCore: Double, activeAgents: Int, localModelGB: Double,
+                              zombie: SnapshotExtras.Zombie?) throws -> [String] {
+        var beaten: [String] = []
+        func check(_ type: String, _ value: Double, minimum: Double, app: String? = nil, details: String? = nil) throws {
+            guard value >= minimum else { return }
+            let existing = try db.currentRecord(type: type)
+            if existing == nil || value > existing!.value {
+                try db.saveRecord(type: type, value: value, appName: app, details: details)
+                beaten.append(type)
+            }
+        }
+        try check("peak_load_per_core", loadPerCore, minimum: 1)
+        try check("peak_concurrent_agents", Double(activeAgents), minimum: 2)
+        try check("peak_local_model_gb", localModelGB, minimum: 1)
+        if let zombie {
+            // One zombie record, whichever app holds it (saveRecord keys records by app).
+            try check("zombie_score", zombie.score, minimum: 10,
+                      details: String(format: "%@ · %.0f GB · %.0fd", zombie.app, zombie.gb, zombie.days))
+        }
+        return beaten
+    }
 }

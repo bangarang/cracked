@@ -10,7 +10,7 @@ struct StatsWindowContent: View {
     init(menuBarViewModel: MenuBarViewModel) {
         self.menuBarViewModel = menuBarViewModel
         // StateObject init only runs once, so db is captured stably
-        _statsViewModel = StateObject(wrappedValue: StatsViewModel(db: menuBarViewModel.db))
+        _statsViewModel = StateObject(wrappedValue: StatsViewModel(db: menuBarViewModel.db, fleet: menuBarViewModel.fleet))
     }
 
     var body: some View {
@@ -25,19 +25,21 @@ struct StatsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                toolbar
+
                 // Live Stats
                 liveStatsSection
 
                 Divider()
 
                 // Tracked Apps
-                if !menuBarViewModel.trackedApps.isEmpty {
+                if viewModel.peer == nil && !menuBarViewModel.trackedApps.isEmpty {
                     trackedAppsSection
                     Divider()
                 }
 
                 // App Activity (Strava-style PRs + trends)
-                if !viewModel.appTrends.isEmpty {
+                if viewModel.peer == nil && !viewModel.appTrends.isEmpty {
                     appActivitySection
                     Divider()
                 }
@@ -66,7 +68,7 @@ struct StatsView: View {
                 recordsSection
 
                 // Hall of Shame
-                if !viewModel.hallOfShame.isEmpty {
+                if viewModel.peer == nil && !viewModel.hallOfShame.isEmpty {
                     Divider()
                     hallOfShameSection
                 }
@@ -78,34 +80,68 @@ struct StatsView: View {
         .onDisappear { viewModel.stopAutoRefresh() }
     }
 
+    // MARK: - Toolbar
+
+    private var toolbar: some View {
+        HStack {
+            if !menuBarViewModel.fleet.peers.isEmpty {
+                Picker("Mac", selection: $viewModel.peer) {
+                    Text(menuBarViewModel.machine.name + " (this Mac)").tag(FleetPeer?.none)
+                    ForEach(menuBarViewModel.fleet.peers) { peer in
+                        Text(peer.name).tag(Optional(peer))
+                    }
+                }
+                .frame(maxWidth: 320)
+            }
+            Spacer()
+            Button {
+                ShareCenter.shared.show(.thisWeek)
+            } label: {
+                Label("Share My Week", systemImage: "square.and.arrow.up")
+            }
+        }
+    }
+
     // MARK: - Live Stats
+
+    private struct LiveValues {
+        var load: Double, memoryUsed: Double, memoryTotal: Double, processes: Int, hogs: Int
+    }
+
+    private var live: LiveValues? {
+        if let peer = viewModel.peer {
+            guard let report = menuBarViewModel.fleet.states[peer.id]?.report else { return nil }
+            return LiveValues(load: report.loadAverage, memoryUsed: report.memoryUsedGB, memoryTotal: report.memoryTotalGB,
+                              processes: report.totalProcesses, hogs: report.cpuHogs.count)
+        }
+        return LiveValues(load: menuBarViewModel.loadAverage, memoryUsed: menuBarViewModel.memoryUsedGB,
+                          memoryTotal: menuBarViewModel.memoryTotalGB, processes: menuBarViewModel.totalProcesses,
+                          hogs: menuBarViewModel.cpuHogs.count)
+    }
 
     private var liveStatsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Live System Stats")
                 .font(.title2.bold())
 
-            HStack(spacing: 20) {
-                statCard(
-                    label: "Load Average",
-                    value: String(format: "%.1f", menuBarViewModel.loadAverage),
-                    color: menuBarViewModel.loadAverage > 8 ? .red : .green
-                )
-                statCard(
-                    label: "Memory",
-                    value: String(format: "%.0f / %.0f GB", menuBarViewModel.memoryUsedGB, menuBarViewModel.memoryTotalGB),
-                    color: menuBarViewModel.memoryUsedGB / max(menuBarViewModel.memoryTotalGB, 1) > 0.85 ? .orange : .green
-                )
-                statCard(
-                    label: "Processes",
-                    value: "\(menuBarViewModel.totalProcesses)",
-                    color: .secondary
-                )
-                statCard(
-                    label: "CPU Hogs",
-                    value: "\(menuBarViewModel.cpuHogs.count)",
-                    color: menuBarViewModel.cpuHogs.isEmpty ? .green : .red
-                )
+            if let live {
+                HStack(spacing: 20) {
+                    statCard(
+                        label: "Load Average",
+                        value: String(format: "%.1f", live.load),
+                        color: live.load > 8 ? .red : .green
+                    )
+                    statCard(
+                        label: "Memory",
+                        value: String(format: "%.0f / %.0f GB", live.memoryUsed, live.memoryTotal),
+                        color: live.memoryUsed / max(live.memoryTotal, 1) > 0.85 ? .orange : .green
+                    )
+                    statCard(label: "Processes", value: "\(live.processes)", color: .secondary)
+                    statCard(label: "CPU Hogs", value: "\(live.hogs)", color: live.hogs == 0 ? .green : .red)
+                }
+            } else {
+                Text("Waiting for \(viewModel.peer?.name ?? "this Mac") to report in…")
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -339,8 +375,8 @@ struct StatsView: View {
                     columns: [GridItem(.flexible()), GridItem(.flexible())],
                     spacing: 12
                 ) {
-                    ForEach(viewModel.records.prefix(8), id: \.id) { record in
-                        RecordCard(record: record)
+                    ForEach(Array(viewModel.records.prefix(12).enumerated()), id: \.offset) { _, record in
+                        RecordCard(record: record, shareable: viewModel.peer == nil)
                     }
                 }
             }
@@ -401,17 +437,35 @@ struct StatsView: View {
 
 struct RecordCard: View {
     let record: RecordEntry
+    var shareable = true
+    @State private var hovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(recordTypeLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(formattedValue)
+            HStack {
+                Text(RecordFormatting.label(record.recordType))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if shareable {
+                    Button {
+                        ShareCenter.shared.show(.record(type: record.recordType, app: record.appName))
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.borderless)
+                    .opacity(hovering ? 1 : 0.35)
+                    .help("Share this record")
+                }
+            }
+            Text(RecordFormatting.value(record))
                 .font(.title3.bold())
             if let app = record.appName {
-                let displayName = extractAppName(app)
-                Text(displayName)
+                Text(RecordFormatting.appName(app))
+                    .font(.caption)
+                    .lineLimit(1)
+            } else if record.recordType == "zombie_score", let details = record.details {
+                Text(details)
                     .font(.caption)
                     .lineLimit(1)
             }
@@ -426,38 +480,6 @@ struct RecordCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.5))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var recordTypeLabel: String {
-        switch record.recordType {
-        case "peak_cpu": "Peak CPU"
-        case "process_count": "Most Processes"
-        case "total_processes": "Total System Processes"
-        case "peak_tabs": "Most Tabs"
-        case "peak_windows": "Most Windows"
-        case "peak_sessions": "Most Sessions"
-        case "peak_agents": "Most Agents"
-        default: record.recordType
-        }
-    }
-
-    private var formattedValue: String {
-        switch record.recordType {
-        case "peak_cpu": String(format: "%.0f%%", record.value)
-        case "process_count": "\(Int(record.value)) processes"
-        case "total_processes": "\(Int(record.value)) processes"
-        case "peak_tabs": "\(Int(record.value)) tabs"
-        case "peak_windows": "\(Int(record.value)) windows"
-        case "peak_sessions": "\(Int(record.value)) sessions"
-        default: String(format: "%.0f", record.value)
-        }
-    }
-
-    private func extractAppName(_ fullPath: String) -> String {
-        guard let range = fullPath.range(of: ".app/") ?? fullPath.range(of: ".app") else {
-            return (fullPath as NSString).lastPathComponent
-        }
-        let appPath = String(fullPath[fullPath.startIndex..<range.lowerBound])
-        return (appPath as NSString).lastPathComponent
+        .onHover { hovering = $0 }
     }
 }

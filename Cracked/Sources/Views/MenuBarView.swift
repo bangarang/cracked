@@ -20,10 +20,23 @@ struct MenuBarView: View {
 
             Divider()
 
-            // Agents waiting on you: blocked, errored or finished
-            if !attentionAgents.isEmpty {
+            // Agents waiting on you: blocked, errored or finished, here and on paired Macs
+            if !attentionAgents.isEmpty || !remoteAttentionAgents.isEmpty {
                 sectionHeader("Needs You")
                 agentRows(attentionAgents)
+                ForEach(remoteAttentionAgents) { item in
+                    RemoteAgentRowView(item: item)
+                        .padding(.horizontal, 8)
+                }
+            }
+
+            // Paired Macs
+            if viewModel.fleet.isEnabled && !viewModel.fleet.peers.isEmpty {
+                sectionHeader("Fleet")
+                ForEach(viewModel.fleet.peers) { peer in
+                    FleetRowView(peer: peer, state: viewModel.fleet.states[peer.id], fleet: viewModel.fleet)
+                        .padding(.horizontal, 8)
+                }
             }
 
             // Models Ollama has loaded: the biggest, least visible memory users
@@ -138,6 +151,14 @@ struct MenuBarView: View {
 
                 Spacer(minLength: 8)
 
+                Button {
+                    ShareCenter.shared.show(.now)
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .buttonStyle(FooterButtonStyle())
+                .help("Share how cooked this Mac is")
+
                 Button(action: openSettings) {
                     Image(systemName: "gearshape")
                 }
@@ -163,6 +184,12 @@ struct MenuBarView: View {
         .onAppear {
             viewModel.refreshNow()
             viewModel.markAgentsSeen()
+            viewModel.fleet.menuOpen = true
+            let open = openWindow
+            ShareCenter.shared.openWindow = { open(id: $0) }
+        }
+        .onDisappear {
+            viewModel.fleet.menuOpen = false
         }
     }
 
@@ -207,6 +234,13 @@ struct MenuBarView: View {
 
     private var attentionAgents: [AgentSession] { sortedAgents.filter(\.isWaiting) }
     private var otherAgents: [AgentSession] { sortedAgents.filter { !$0.isWaiting } }
+
+    /// Blocked or finished agents on paired Macs, blocked first.
+    private var remoteAttentionAgents: [FleetAgent] {
+        viewModel.fleet.remoteAgents.filter(\.isWaiting).sorted {
+            ($0.agent.status == "needsInput" ? 0 : 1, $1.agent.updatedAt) < ($1.agent.status == "needsInput" ? 0 : 1, $0.agent.updatedAt)
+        }
+    }
 
     private func agentRows(_ sessions: [AgentSession]) -> some View {
         ForEach(sessions) { session in

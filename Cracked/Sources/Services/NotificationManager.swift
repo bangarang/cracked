@@ -91,6 +91,25 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sen
         UNUserNotificationCenter.current().add(request)
     }
 
+    /// An agent on another Mac: "my-project on MacBook Pro: Claude needs your input".
+    func sendRemoteAgentNotification(_ agent: SystemReport.Agent, machineName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "\(agent.project) · \(machineName)"
+        let name = ["claude": "Claude", "opencode": "OpenCode", "codex": "Codex"][agent.provider ?? "claude"] ?? "The agent"
+        switch agent.status {
+        case "needsInput": content.body = agent.message ?? "\(name) needs your input"
+        case "error": content.body = "\(name) hit an error" + (agent.message.map { ": \($0)" } ?? "")
+        default: content.body = "\(name) is done" + (agent.terminal.map { " · \($0)" } ?? "")
+        }
+        if let title = agent.title { content.subtitle = title }
+        content.sound = .default
+        content.categoryIdentifier = Self.agentCategoryID
+        content.threadIdentifier = agent.sessionID
+        if let url = agent.paseoURL { content.userInfo = ["paseoURL": url] }
+        let request = UNNotificationRequest(identifier: "agent-\(machineName)-\(agent.sessionID)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
     // Show banners even while Cracked's own window is focused.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -108,6 +127,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Sen
         if let data = userInfo["agentSession"] as? Data,
            let session = try? JSONDecoder().decode(AgentSession.self, from: data) {
             await AgentNavigator.focus(session)
+            return
+        }
+        if let link = userInfo["paseoURL"] as? String, let url = URL(string: link) {
+            NSWorkspace.shared.open(url)
             return
         }
         guard let pid = userInfo["pid"] as? Int32 else { return }

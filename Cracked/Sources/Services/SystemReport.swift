@@ -43,15 +43,18 @@ enum PressureLevel: String, Codable, Sendable {
 
 /// A point-in-time picture of the machine, shared by `Cracked status`,
 /// the MCP server and the SessionStart hook.
-struct SystemReport: Encodable, Sendable {
-    struct Hog: Encodable, Sendable {
+struct SystemReport: Codable, Sendable {
+    /// Bumped when a field changes meaning or is removed. New optional fields don't bump it.
+    static let currentSchemaVersion = 1
+
+    struct Hog: Codable, Sendable {
         let name: String
         let pid: Int32
         let cpuPercent: Double
         let memoryMB: Int
     }
 
-    struct RestartCandidate: Encodable, Sendable {
+    struct RestartCandidate: Codable, Sendable {
         let name: String
         let pid: Int32
         let bundlePath: String
@@ -62,13 +65,13 @@ struct SystemReport: Encodable, Sendable {
         let uptimeSeconds: Int
     }
 
-    struct Tracked: Encodable, Sendable {
+    struct Tracked: Codable, Sendable {
         let name: String
         let count: Int
         let label: String
     }
 
-    struct Agent: Encodable, Sendable {
+    struct Agent: Codable, Sendable {
         let sessionID: String
         /// "paseo", "terminal" (found running in a terminal) or "claudeCode" (reported by hooks).
         let source: String
@@ -80,6 +83,8 @@ struct SystemReport: Encodable, Sendable {
         let message: String?
         let terminal: String?
         let updatedAt: Date
+        /// Opens the agent in Paseo (Paseo agents only).
+        var paseoURL: String? = nil
     }
 
     let timestamp: Date
@@ -98,12 +103,20 @@ struct SystemReport: Encodable, Sendable {
     /// Models Ollama has loaded; empty when Ollama isn't running.
     let localModels: [LocalModel]
 
+    // Added for the fleet. Optional so reports from older builds still decode.
+    var schemaVersion: Int?
+    var machine: MachineIdentity?
+    var appVersion: String?
+    /// Seconds since the last keyboard or mouse input, so the fleet notifies on the Mac you're using.
+    var idleSeconds: Double?
+
     // MARK: - Building
 
     static func build(snapshot: SystemSnapshot, settings: CrackedSettings,
                       launchedAppPIDs: Set<Int32>, ignoredBundlePaths: Set<String>,
                       agents: [AgentSession], cpuCores: Int,
-                      memoryPressure: MemoryPressure = .normal, localModels: [LocalModel] = []) -> SystemReport {
+                      memoryPressure: MemoryPressure = .normal, localModels: [LocalModel] = [],
+                     machine: MachineIdentity? = nil, idleSeconds: Double? = nil) -> SystemReport {
         let userApps = snapshot.processes.filter { $0.isUserApp }
         let hogs = userApps
             .filter { $0.cpuPercent >= settings.cpuThreshold }
@@ -118,7 +131,7 @@ struct SystemReport: Encodable, Sendable {
         )
         let tracked = MenuBarViewModel.computeTrackedApps(from: snapshot.processes)
 
-        return SystemReport(
+        var report = SystemReport(
             timestamp: snapshot.timestamp,
             pressure: .from(cpuHogs: hogs, loadAverage: snapshot.loadAverage, memoryPressure: memoryPressure),
             loadAverage: (snapshot.loadAverage * 100).rounded() / 100,
@@ -139,11 +152,17 @@ struct SystemReport: Encodable, Sendable {
             agents: agents.map {
                 Agent(sessionID: $0.sessionID, source: $0.source.rawValue, provider: $0.provider,
                       title: $0.title, project: $0.projectName, cwd: $0.cwd, status: $0.status.rawValue,
-                      message: $0.message, terminal: $0.terminalName, updatedAt: $0.updatedAt)
+                      message: $0.message, terminal: $0.terminalName, updatedAt: $0.updatedAt,
+                      paseoURL: $0.paseoURL?.absoluteString)
             },
             memoryPressure: memoryPressure,
             localModels: localModels
         )
+        report.schemaVersion = currentSchemaVersion
+        report.machine = machine
+        report.appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        report.idleSeconds = idleSeconds
+        return report
     }
 
     /// Takes a fresh reading of this Mac.
@@ -163,7 +182,9 @@ struct SystemReport: Encodable, Sendable {
             agents: AgentFeed.load(paseo: PaseoAgentReader()),
             cpuCores: ProcessInfo.processInfo.activeProcessorCount,
             memoryPressure: .current(),
-            localModels: Ollama.isRunning(processes: processes) ? (Ollama.loadedModelsSync() ?? []) : []
+            localModels: Ollama.isRunning(processes: processes) ? (Ollama.loadedModelsSync() ?? []) : [],
+            machine: .current(),
+            idleSeconds: UserActivity.idleSeconds()
         )
     }
 
@@ -175,6 +196,26 @@ struct SystemReport: Encodable, Sendable {
     }
 
     // MARK: - Rendering
+
+    /// Wire format between Cracked instances: camelCase keys (round-trips `sessionID`), ISO 8601 dates.
+    static let wireEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return encoder
+    }()
+
+    static let wireDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }()
+
+    /// Load per core: 1.0 means every core is busy. The fair way to compare Macs.
+    var loadPerCore: Double { cpuCores > 0 ? loadAverage / Double(cpuCores) : loadAverage }
+
+    /// Agents working or waiting on input right now.
+    var activeAgentCount: Int { agents.filter { $0.status == "working" || $0.status == "needsInput" }.count }
 
     var json: String {
         let encoder = JSONEncoder()
@@ -233,7 +274,10 @@ struct SystemReport: Encodable, Sendable {
 
     /// Context for a new Claude Code session, only when the machine is under
     /// pressure (so it's useful signal, not noise in every session).
-    var agentBrief: String? {
+    var agentBrief: String? { agentBrief(idlePeerHint: nil) }
+
+    /// The brief, plus a pointer to an idle paired Mac if there is one.
+    func agentBrief(idlePeerHint: String?) -> String? {
         guard pressure != .normal || memoryPercent >= 0.9 else { return nil }
         var parts = [String(format: "load %.1f on %d cores", loadAverage, cpuCores),
                      String(format: "RAM %.0f/%.0f GB", memoryUsedGB, memoryTotalGB)]
@@ -253,6 +297,7 @@ struct SystemReport: Encodable, Sendable {
         return "[Cracked system monitor] This Mac is under heavy load: " + parts.joined(separator: " · ")
             + ". Prefer running builds and test suites one at a time, and avoid starting extra heavy processes"
             + (localModels.isEmpty ? "." : " or loading more local models.")
+            + (idlePeerHint.map { " Another of the user's Macs has room: \($0) (see the Cracked MCP tool least_loaded_machine)." } ?? "")
     }
 }
 
