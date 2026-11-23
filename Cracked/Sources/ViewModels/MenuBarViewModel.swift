@@ -235,24 +235,32 @@ final class MenuBarViewModel: ObservableObject {
         )
     }
 
+    /// Chromium renderer helpers: "Comet Helper (Renderer)", and newer builds'
+    /// "Comet Helper (Aperitif Renderer)". One per tab (or per Electron window).
+    nonisolated static func isRenderer(_ path: String) -> Bool {
+        let name = (path as NSString).lastPathComponent
+        guard let open = name.range(of: "Helper ("), name.hasSuffix(")") else { return false }
+        return name[open.upperBound...].contains("Renderer")
+    }
+
     nonisolated static func computeTrackedApps(from processes: [ProcessSnapshot]) -> [TrackedAppCount] {
         var results: [TrackedAppCount] = []
 
-        // Browser tabs: count "Helper (Renderer)" processes per browser
+        // Browser tabs: count renderer helpers per browser (see isRenderer)
         let browsers: [(name: String, keyword: String, bundle: String)] = [
             ("Comet", "Comet", "/Applications/Comet.app"),
             ("Arc", "Arc", "/Applications/Arc.app"),
             ("Chrome", "Google Chrome", "/Applications/Google Chrome.app"),
         ]
         for browser in browsers {
-            let count = processes.count { $0.name.contains(browser.keyword) && $0.name.contains("Helper (Renderer)") }
+            let count = processes.count { $0.name.contains(browser.keyword) && isRenderer($0.name) }
             if count > 0 {
                 results.append(TrackedAppCount(name: browser.name, count: count, label: "tabs", appBundlePath: browser.bundle))
             }
         }
 
-        // Cursor windows: count "Cursor Helper (Renderer)" processes
-        let cursorWindows = processes.count { $0.name.contains("Cursor") && $0.name.contains("Helper (Renderer)") }
+        // Cursor windows: count Cursor renderer helpers
+        let cursorWindows = processes.count { $0.name.contains("Cursor") && isRenderer($0.name) }
         if cursorWindows > 0 {
             results.append(TrackedAppCount(name: "Cursor", count: cursorWindows, label: "windows", appBundlePath: "/Applications/Cursor.app"))
         }
